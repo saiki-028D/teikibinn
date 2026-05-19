@@ -1,79 +1,110 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車両・配車運行管理システム</title>
-  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-  <style>
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; }
-  </style>
-</head>
-<body class="bg-gray-50 text-gray-800">
+// スプレッドシートのデータをオブジェクトの配列に変換する共通関数
+function getSheetData(sheetName) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var data = [];
+  
+  for (var i = 1; i < rows.length; i++) {
+    var row = rows[i];
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      // 日付オブジェクトの場合は、文字列(YYYY-MM-DD)に安全に変換
+      if (row[j] instanceof Date) {
+        var d = row[j];
+        obj[headers[j]] = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+      } else {
+        obj[headers[j]] = row[j];
+      }
+    }
+    data.push(obj);
+  }
+  return data;
+}
 
-  <div id="status-bar" class="bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2">
-    <span class="w-3 h-3 rounded-full bg-yellow-500 animate-pulse"></span>
-    <span id="status-text">データを読み込み中...</span>
-  </div>
+// データの取得（GETリクエスト）
+function doGet(e) {
+  var sheetName = e.parameter.sheet;
+  var callback = e.parameter.callback;
+  var data = getSheetData(sheetName);
+  
+  var responseText = callback + "(" + JSON.stringify({ data: data }) + ");";
+  return ContentService.createTextOutput(responseText).setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
 
-  <nav class="bg-white shadow-sm sticky top-0 z-50">
-    <div class="max-w-4xl mx-auto flex justify-between text-center text-sm">
-      <button onclick="switchTab('today')" id="tab-today" class="w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600">本日の配車・運行</button>
-      <button onclick="switchTab('calendar')" id="tab-calendar" class="w-full py-4 text-gray-600 hover:text-blue-600">カレンダー実績</button>
-      <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 text-gray-600 hover:text-blue-600">取引先マスタ</button>
-      <button onclick="switchTab('vehicles')" id="tab-vehicles" class="w-full py-4 text-gray-600 hover:text-blue-600">車両管理</button>
-      <button onclick="switchTab('checks')" id="tab-checks" class="w-full py-4 text-gray-600 hover:text-blue-600">月次点検</button>
-    </div>
-  </nav>
-
-  <main class="max-w-4xl mx-auto p-4 pb-24">
+// データの更新・保存・削除（POSTリクエスト）
+function doPost(e) {
+  var postData = JSON.parse(e.postData.contents);
+  var sheetName = postData.sheet;
+  var action = postData.action;
+  
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(sheetName);
+  
+  if (action === 'upsert') {
+    var id = postData.id;
+    var rowData = postData.row;
+    var rows = sheet.getDataRange().getValues();
+    var foundIndex = -1;
     
-    <section id="view-today" class="tab-content space-y-6">
-      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
-        <div class="flex justify-between items-center border-b pb-2">
-          <h2 class="text-base font-bold text-gray-700">🚛 本日の運行計画（事前予定も自動反映）</h2>
-          <span id="today-date-display" class="text-sm font-medium text-gray-500"></span>
-        </div>
-        
-        <p class="text-xs text-gray-500">※基本パターン、またはスプレッドシートに事前入力された本日の予定が自動チェックされています。</p>
-        
-        <div id="today-dispatch-selector" class="space-y-3"></div>
-
-        <button onclick="saveTodayDispatch()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">
-          本日の運行日程を確定・更新する
-        </button>
-      </div>
-
-      <div class="space-y-3">
-        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">本日の確定運行スケジュール</h2>
-        <div id="today-final-list" class="bg-white p-4 rounded-xl shadow-sm space-y-3"></div>
-      </div>
-      
-      <div class="space-y-2">
-        <h2 class="text-lg font-bold text-gray-700">車両アラート</h2>
-        <div id="today-alerts" class="bg-white p-4 rounded-xl shadow-sm space-y-2"></div>
-      </div>
-    </section>
-
-    <section id="view-calendar" class="tab-content hidden space-y-4">
-      <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">運行実績・予定カレンダー</h2>
-      <div class="bg-white p-4 rounded-xl shadow-sm">
-        <div class="flex justify-between items-center mb-4">
-          <button onclick="changeMonth(-1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">◀ 前月</button>
-          <span id="calendar-month-title" class="text-lg font-bold"></span>
-          <button onclick="changeMonth(1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">次月 ▶</button>
-        </div>
-        <div class="grid grid-cols-7 gap-1 text-center font-bold text-sm text-gray-500 mb-2">
-          <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
-        </div>
-        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
-      </div>
-      <div id="calendar-detail" class="bg-white p-4 rounded-xl shadow-sm hidden">
-        <h3 id="calendar-detail-date" class="font-bold text-blue-600 mb-2"></h3>
-        <div id="calendar-detail-list" class="space-y-2"></div>
-      </div>
-    </section>
-
-    <section id="view-companies" class="tab-content hidden space-y-4">
-      <div class="flex justify-between items-center">
-        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">取引
+    // 既存のIDがあるかチェック
+    for (var i = 1; i < rows.length; i++) {
+      if (rows[i][0] == id) {
+        foundIndex = i + 1; // スプレッドシートの行番号(2から開始)
+        break;
+      }
+    }
+    
+    // シートごとに列の並び順を設定（新しい項目構成に対応）
+    var newRow = [];
+    if (sheetName === 'routes') {
+      newRow = [rowData.id, rowData.name, rowData.time, rowData.vehicleId, rowData.days, rowData.note];
+    } else if (sheetName === 'vehicles') {
+      newRow = [rowData.id, rowData.name, rowData.type, rowData.shaken, rowData.insurance, rowData.note];
+    }
+    
+    if (foundIndex > -1) {
+      // 上書き
+      sheet.getRange(foundIndex, 1, 1, newRow.length).setValues([newRow]);
+    } else {
+      // 新規追加
+      sheet.appendRow(newRow);
+    }
+    
+  } else if (action === 'delete') {
+    var id = postData.id;
+    var rows = sheet.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+      if (rows[i][0] == id) {
+        sheet.deleteRow(i + 1);
+        break;
+      }
+    }
+  } else if (action === 'save_check') {
+    // 点検表用の保存ロジック（既存の月データがあれば上書き、なければ追加）
+    var vId = postData.vehicleId;
+    var year = postData.year;
+    var month = postData.month;
+    var marks = postData.marks;
+    var note = postData.note;
+    var savedAt = postData.savedAt;
+    
+    var rows = sheet.getDataRange().getValues();
+    
+    // まず、その車両・年月の既存データを削除（一括上書きするため）
+    for (var i = rows.length - 1; i >= 1; i--) {
+      if (rows[i][0] == vId && rows[i][1] == year && rows[i][2] == month) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+    
+    // 新しい点検結果を1項目1行で追加
+    for (var key in marks) {
+      if (marks.hasOwnProperty(key)) {
+        sheet.appendRow([vId, year, month, key, marks[key], note, savedAt]);
+      }
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({ status: 'success' })).setMimeType(ContentService.MimeType.JSON);
+}
