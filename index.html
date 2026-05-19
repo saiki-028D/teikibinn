@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>車両・定期便管理システム</title>
+  <title>車両・配車運行管理システム</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <style>
     body { font-family: 'Helvetica Neue', Arial, sans-serif; }
-    .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: bold; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -19,28 +18,45 @@
 
   <nav class="bg-white shadow-sm sticky top-0 z-50">
     <div class="max-w-4xl mx-auto flex justify-between text-center text-sm">
-      <button onclick="switchTab('today')" id="tab-today" class="w-full py-4 text-gray-600 hover:text-blue-600 transition">今日</button>
-      <button onclick="switchTab('calendar')" id="tab-calendar" class="w-full py-4 text-gray-600 hover:text-blue-600 transition">カレンダー</button>
-      <button onclick="switchTab('routes')" id="tab-routes" class="w-full py-4 text-gray-600 hover:text-blue-600 transition">便の管理</button>
-      <button onclick="switchTab('vehicles')" id="tab-vehicles" class="w-full py-4 text-gray-600 hover:text-blue-600 transition">車両</button>
-      <button onclick="switchTab('checks')" id="tab-checks" class="w-full py-4 text-gray-600 hover:text-blue-600 transition">点検表</button>
+      <button onclick="switchTab('today')" id="tab-today" class="w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600">本日の配車・運行</button>
+      <button onclick="switchTab('calendar')" id="tab-calendar" class="w-full py-4 text-gray-600 hover:text-blue-600">カレンダー実績</button>
+      <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 text-gray-600 hover:text-blue-600">取引先マスタ</button>
+      <button onclick="switchTab('vehicles')" id="tab-vehicles" class="w-full py-4 text-gray-600 hover:text-blue-600">車両管理</button>
+      <button onclick="switchTab('checks')" id="tab-checks" class="w-full py-4 text-gray-600 hover:text-blue-600">月次点検</button>
     </div>
   </nav>
 
   <main class="max-w-4xl mx-auto p-4 pb-24">
     
-    <section id="view-today" class="tab-content hidden space-y-6">
-      <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">本日の運行日程</h2>
-      <div id="today-routes-list" class="bg-white p-4 rounded-xl shadow-sm space-y-3">
+    <section id="view-today" class="tab-content space-y-6">
+      <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
+        <div class="flex justify-between items-center border-b pb-2">
+          <h2 class="text-base font-bold text-gray-700">🚛 本日の運行計画（事前予定も自動反映）</h2>
+          <span id="today-date-display" class="text-sm font-medium text-gray-500"></span>
         </div>
+        
+        <p class="text-xs text-gray-500">※基本パターン、またはスプレッドシートに事前入力された本日の予定が自動チェックされています。</p>
+        
+        <div id="today-dispatch-selector" class="space-y-3"></div>
+
+        <button onclick="saveTodayDispatch()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">
+          本日の運行日程を確定・更新する
+        </button>
+      </div>
+
+      <div class="space-y-3">
+        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">本日の確定運行スケジュール</h2>
+        <div id="today-final-list" class="bg-white p-4 rounded-xl shadow-sm space-y-3"></div>
+      </div>
       
-      <h2 class="text-xl font-bold border-l-4 border-red-500 pl-2">警告・お知らせ</h2>
-      <div id="today-alerts" class="bg-white p-4 rounded-xl shadow-sm space-y-2">
-        </div>
+      <div class="space-y-2">
+        <h2 class="text-lg font-bold text-gray-700">車両アラート</h2>
+        <div id="today-alerts" class="bg-white p-4 rounded-xl shadow-sm space-y-2"></div>
+      </div>
     </section>
 
     <section id="view-calendar" class="tab-content hidden space-y-4">
-      <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">運行＆車検カレンダー</h2>
+      <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">運行実績・予定カレンダー</h2>
       <div class="bg-white p-4 rounded-xl shadow-sm">
         <div class="flex justify-between items-center mb-4">
           <button onclick="changeMonth(-1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">◀ 前月</button>
@@ -50,8 +66,7 @@
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-sm text-gray-500 mb-2">
           <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
         </div>
-        <div id="calendar-grid" class="grid grid-cols-7 gap-1">
-          </div>
+        <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
       </div>
       <div id="calendar-detail" class="bg-white p-4 rounded-xl shadow-sm hidden">
         <h3 id="calendar-detail-date" class="font-bold text-blue-600 mb-2"></h3>
@@ -59,13 +74,12 @@
       </div>
     </section>
 
-    <section id="view-routes" class="tab-content hidden space-y-4">
+    <section id="view-companies" class="tab-content hidden space-y-4">
       <div class="flex justify-between items-center">
-        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">運行便の管理（定期・不定期）</h2>
-        <button onclick="openRouteModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 便を追加</button>
+        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">取引先（会社）の管理</h2>
+        <button onclick="openCompanyModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 取引先を追加</button>
       </div>
-      <div id="routes-list" class="grid gap-4 sm:grid-cols-2">
-        </div>
+      <div id="companies-list" class="grid gap-4 sm:grid-cols-2"></div>
     </section>
 
     <section id="view-vehicles" class="tab-content hidden space-y-4">
@@ -73,57 +87,69 @@
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">車両の管理</h2>
         <button onclick="openVehicleModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 車両を追加</button>
       </div>
-      <div id="vehicles-list" class="grid gap-4 sm:grid-cols-2">
-        </div>
+      <div id="vehicles-list" class="grid gap-4 sm:grid-cols-2"></div>
     </section>
 
     <section id="view-checks" class="tab-content hidden space-y-4">
       <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">月次点検表（26項目）</h2>
       <div class="bg-white p-4 rounded-xl shadow-sm flex flex-wrap gap-4 items-center">
-        <div>
-          <label class="block text-xs text-gray-500">対象車両</label>
-          <select id="check-vehicle" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500">点検年</label>
-          <select id="check-year" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select>
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500">点検月</label>
-          <select id="check-month" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select>
-        </div>
+        <div><label class="block text-xs text-gray-500">対象車両</label><select id="check-vehicle" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+        <div><label class="block text-xs text-gray-500">点検年</label><select id="check-year" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+        <div><label class="block text-xs text-gray-500">点検月</label><select id="check-month" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
       </div>
-
-      <div id="check-form-container" class="bg-white rounded-xl shadow-sm p-4 space-y-6">
-        </div>
-
+      <div id="check-form-container" class="bg-white rounded-xl shadow-sm p-4 space-y-6"></div>
       <div class="bg-white p-4 rounded-xl shadow-sm space-y-2">
         <label class="block text-sm font-medium text-gray-700">特記事項・メモ</label>
-        <textarea id="check-note" class="w-full border p-2 rounded-lg text-sm" rows="3" placeholder="異常があった場合の詳細など"></textarea>
+        <textarea id="check-note" class="w-full border p-2 rounded-lg text-sm" rows="3"></textarea>
       </div>
-
-      <button onclick="saveCheckData()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition shadow-md shadow-green-100">
-        点検結果をスプレッドシートに保存
-      </button>
+      <button onclick="saveCheckData()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition shadow-md">点検結果を保存</button>
     </section>
 
   </main>
+
+  <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4">
+      <h3 id="company-modal-title" class="text-lg font-bold">取引先の登録</h3>
+      <input type="hidden" id="c-id">
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">会社名・納品先名</label>
+        <input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded-lg text-sm">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <input type="text" id="c-from" placeholder="出発地" class="w-full border p-2 rounded-lg text-sm">
+        <input type="text" id="c-to" placeholder="到着地" class="w-full border p-2 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻（あれば）</label>
+        <input type="time" id="c-time" class="w-full border p-2 rounded-lg text-sm">
+      </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">基本の運行パターン</label>
+        <select id="c-pattern" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+          <option value="毎営業日">毎営業日（毎日自動チェック）</option>
+          <option value="月,木">月・木 固定（月木に自動チェック）</option>
+          <option value="火,金">火・金 固定（火金に自動チェック）</option>
+          <option value="水">水曜 固定（水曜に自動チェック）</option>
+          <option value="不定期・かんばん次第">不定期・かんばん次第（デフォルトチェックなし）</option>
+        </select>
+      </div>
+      <input type="text" id="c-note" placeholder="備考（例: かんばんA、パレット回収あり等）" class="w-full border p-2 rounded-lg text-sm">
+      <div class="flex justify-end gap-2 text-sm">
+        <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
+        <button onclick="submitCompany()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
+      </div>
+    </div>
+  </div>
 
   <div id="vehicle-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4">
       <h3 id="vehicle-modal-title" class="text-lg font-bold">車両の登録</h3>
       <input type="hidden" id="v-id">
-      <input type="text" id="v-name" placeholder="車両名・ナンバー (例: 尾張小牧100 あ 1234)" class="w-full border p-2 rounded-lg text-sm">
-      <input type="text" id="v-type" placeholder="車種 (例: 4tトラック)" class="w-full border p-2 rounded-lg text-sm">
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">車検満了日</label>
-        <input type="date" id="v-shaken" class="w-full border p-2 rounded-lg text-sm">
-      </div>
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">任意保険更新日</label>
-        <input type="date" id="v-insurance" class="w-full border p-2 rounded-lg text-sm">
-      </div>
-      <input type="text" id="v-note" placeholder="備考・メモ" class="w-full border p-2 rounded-lg text-sm">
+      <input type="text" id="v-name" placeholder="車両名・ナンバー" class="w-full border p-2 rounded-lg text-sm">
+      <input type="text" id="v-type" placeholder="車種" class="w-full border p-2 rounded-lg text-sm">
+      <div><label class="block text-xs text-gray-500 mb-1">車検満了日</label><input type="date" id="v-shaken" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">任意保険更新日</label><input type="date" id="v-insurance" class="w-full border p-2 rounded-lg text-sm"></div>
+      <input type="text" id="v-note" placeholder="備考" class="w-full border p-2 rounded-lg text-sm">
       <div class="flex justify-end gap-2 text-sm">
         <button onclick="closeVehicleModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
         <button onclick="submitVehicle()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
@@ -131,86 +157,14 @@
     </div>
   </div>
 
-  <div id="route-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4 overflow-y-auto max-h-[90vh]">
-      <h3 id="route-modal-title" class="text-lg font-bold">便の登録</h3>
-      <input type="hidden" id="r-id">
-      
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">路線名・運行名</label>
-        <input type="text" id="r-name" placeholder="例: A工場➔本社定期便、○○スポット配送" class="w-full border p-2 rounded-lg text-sm">
-      </div>
-
-      <div class="grid grid-cols-2 gap-2">
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">出発地</label>
-          <input type="text" id="r-from" placeholder="出発地" class="w-full border p-2 rounded-lg text-sm">
-        </div>
-        <div>
-          <label class="block text-xs text-gray-500 mb-1">到着地</label>
-          <input type="text" id="r-to" placeholder="到着地" class="w-full border p-2 rounded-lg text-sm">
-        </div>
-      </div>
-
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">出発時刻</label>
-        <div class="flex items-center gap-4">
-          <input type="time" id="r-time" class="border p-2 rounded-lg text-sm bg-white disabled:bg-gray-100 w-1/2">
-          <label class="flex items-center gap-1 text-sm cursor-pointer select-none">
-            <input type="checkbox" id="r-time-none" onchange="toggleTimeInput()"> 時間指定なし
-          </label>
-        </div>
-      </div>
-
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">担当車両</label>
-        <select id="r-vehicleId" class="w-full border p-2 rounded-lg text-sm bg-gray-50"></select>
-      </div>
-
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">運行スケジュール</label>
-        <div class="flex gap-2 p-1 bg-gray-100 rounded-lg text-sm">
-          <button type="button" onclick="setRouteType('weekly')" id="btn-type-weekly" class="w-full py-1.5 rounded-md font-medium bg-white shadow-xs">曜日指定（定期便）</button>
-          <button type="button" onclick="setRouteType('date')" id="btn-type-date" class="w-full py-1.5 rounded-md font-medium text-gray-600">日付指定（不定期・スポット）</button>
-        </div>
-      </div>
-
-      <div id="schedule-weekly-area">
-        <label class="block text-xs text-gray-500 mb-1">運行曜日</label>
-        <div class="grid grid-cols-7 gap-1 text-center text-xs">
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="日" class="r-days hidden">日</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="月" class="r-days hidden">月</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="火" class="r-days hidden">火</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="水" class="r-days hidden">水</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="木" class="r-days hidden">木</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="金" class="r-days hidden">金</label>
-          <label class="border p-2 rounded cursor-pointer bg-white"><input type="checkbox" value="土" class="r-days hidden">土</label>
-        </div>
-      </div>
-
-      <div id="schedule-date-area" class="hidden">
-        <label class="block text-xs text-gray-500 mb-1">運行日（日付選択）</label>
-        <input type="date" id="r-specific-date" class="w-full border p-2 rounded-lg text-sm bg-white">
-      </div>
-
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">備考</label>
-        <input type="text" id="r-note" placeholder="任意" class="w-full border p-2 rounded-lg text-sm">
-      </div>
-
-      <div class="flex justify-end gap-2 text-sm pt-2">
-        <button onclick="closeRouteModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
-        <button onclick="submitRoute()" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-medium">保存する</button>
-      </div>
-    </div>
-  </div>
-
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
-
-    let db = { vehicles: [], routes: [], checks: [] };
-    let currentYear, currentMonth; 
-    let currentRouteType = 'weekly'; // 'weekly' または 'date'
+    
+    let db = { vehicles: [], routes: [], checks: [] }; 
+    let currentYear, currentMonth;
+    const todayObj = new Date();
+    const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
+    const todayDay = ['日','月','火','水','木','金','土'][todayObj.getDay()];
 
     const CHECK_ITEMS = [
       { category: '運転席', key: 'seat_1', label: 'ブレーキ・ペダルの踏みしろ、効き具合' },
@@ -242,36 +196,36 @@
     ];
 
     window.onload = function() {
-      const d = new Date();
-      currentYear = d.getFullYear();
-      currentMonth = d.getMonth() + 1;
-      
+      currentYear = todayObj.getFullYear();
+      currentMonth = todayObj.getMonth() + 1;
+      document.getElementById('today-date-display').innerText = `${currentYear}年${currentMonth}月${todayObj.getDate()}日（${todayDay}）`;
       initCheckFormSelectors();
       renderCheckForm();
-      switchTab('today');
       loadAllData();
     };
 
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`view-${tabId}`).classList.remove('hidden');
+      document.querySelectorAll('nav button').forEach(btn => btn.className = 'w-full py-4 text-gray-600 hover:text-blue-600');
+      document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600';
+    }
+
     function loadAllData() {
-      updateStatus('loading', 'スプレッドシートからデータを取得中...');
+      updateStatus('loading', '最新情報を取得中...');
       let loadedCount = 0;
       const sheets = ['vehicles', 'routes', 'checks'];
 
       sheets.forEach(sheet => {
         const callbackName = `callback_${sheet}`;
         window[callbackName] = function(response) {
-          if (response.error) {
-            updateStatus('error', `エラー: ${response.error}`);
-            return;
-          }
           db[sheet] = response.data || [];
           loadedCount++;
           if (loadedCount === sheets.length) {
-            updateStatus('success', 'スプレッドシートと同期済み');
+            updateStatus('success', 'スプレッドシートと同期完了');
             refreshAllViews();
           }
         };
-
         const script = document.createElement('script');
         script.src = `${GAS_URL}?sheet=${sheet}&callback=${callbackName}&_=${Date.now()}`;
         document.body.appendChild(script);
@@ -279,105 +233,213 @@
     }
 
     function refreshAllViews() {
-      renderToday();
+      renderTodayDispatchBuilder();
       renderCalendar();
-      renderRoutes();
+      renderCompanies();
       renderVehicles();
-      updateVehicleDropdowns();
+      updateDropdowns();
       loadCheckData();
     }
 
-    function switchTab(tabId) {
-      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-      document.getElementById(`view-${tabId}`).classList.remove('hidden');
-      document.querySelectorAll('nav button').forEach(btn => btn.className = 'w-full py-4 text-gray-600 hover:text-blue-600 transition');
-      document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600 transition';
-    }
+    // --- ① 今日の配車作成・調整（マスタ＋手入力判定） ---
+    function renderTodayDispatchBuilder() {
+      const selectorContainer = document.getElementById('today-dispatch-selector');
+      const finalListContainer = document.getElementById('today-final-list');
+      selectorContainer.innerHTML = '';
+      finalListContainer.innerHTML = '';
 
-    function updateStatus(type, text) {
-      const bar = document.getElementById('status-bar');
-      const txt = document.getElementById('status-text');
-      const dot = bar.querySelector('span');
-      txt.innerText = text;
-      if (type === 'loading') {
-        bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2";
-        dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse";
-      } else if (type === 'success') {
-        bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2";
-        dot.className = "w-3 h-3 rounded-full bg-green-500";
-      } else {
-        bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2";
-        dot.className = "w-3 h-3 rounded-full bg-red-500";
-      }
-    }
-
-    // --- ① 今日画面の描画（不定期・時間なし対応） ---
-    function renderToday() {
-      const list = document.getElementById('today-routes-list');
-      const alerts = document.getElementById('today-alerts');
-      list.innerHTML = ''; alerts.innerHTML = '';
-
-      const now = new Date();
-      const todayDay = ['日','月','火','水','木','金','土'][now.getDay()];
-      const todayDateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-
-      // 「今日の曜日が含まれる」か「今日の日付と一致する」便を抽出
-      const activeRoutes = db.routes.filter(r => {
-        if (!r.days) return false;
-        return r.days.split(',').includes(todayDay) || r.days === todayDateStr;
+      // 1. マスタ登録されている会社（Cから始まるID）
+      const baseCompanies = db.routes.filter(r => r.id && r.id.startsWith('C'));
+      
+      // 2. スプレッドシートに直接手入力された本日の予定（noteが今日の日付、かつIDがCから始まらない、または空白のもの）
+      // ※手入力でIDがないデータも拾えるように、日付一致するものを抽出
+      const rawRecords = db.routes.filter(r => {
+        if (!r.note) return false;
+        // 日付フォーマットの揺れ（スラッシュをハイフンに統一など）を簡易吸収
+        const cleanNote = r.note.replace(/\//g, '-');
+        return cleanNote.includes(todayStr);
       });
 
-      if (activeRoutes.length === 0) {
-        list.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">本日運行予定の便はありません。</p>';
-      } else {
-        // 時間指定なしを上に、それ以外は時間順に並び替え
-        activeRoutes.sort((a, b) => {
-          if (a.time === '時間指定なし') return -1;
-          if (b.time === '時間指定なし') return 1;
-          return a.time.localeCompare(b.time);
+      // 今日アプリから確定保存されたデータ(D_から始まるもの)を抽出
+      const todaySavedDispatches = rawRecords.filter(r => r.id && r.id.startsWith('D_'));
+      
+      // スプレッドに直接事前に手入力された予定(idが空、またはD_始まり以外でdays='GO'のもの)
+      const advanceDispatches = rawRecords.filter(r => (!r.id || !r.id.startsWith('D_')) && r.days === 'GO');
+
+      // 画面に並べるための統合用リスト
+      let displayItems = [];
+
+      // まずマスタの会社をベースにセット
+      baseCompanies.forEach(c => {
+        // アプリから今日保存した結果があるか
+        const saved = todaySavedDispatches.find(s => s.name === c.name);
+        // 事前手入力があるか
+        const advance = advanceDispatches.find(a => a.name === c.name);
+
+        let isChecked = false;
+        let activeTime = c.time || '';
+        let activeVehicleId = '';
+        let typeLabel = `基本: ${c.days}`;
+
+        if (saved) {
+          isChecked = saved.days === 'GO';
+          activeTime = saved.time || '';
+          activeVehicleId = saved.vehicleId || '';
+        } else if (advance) {
+          isChecked = true; // 事前手入力でGOがあれば最初からチェック
+          activeTime = advance.time || c.time || '';
+          activeVehicleId = advance.vehicleId || '';
+          typeLabel = `⚠️ スプレッド事前予定あり`;
+        } else {
+          // 通常パターンの判定
+          if (c.days === '毎営業日') isChecked = true;
+          if (c.days && c.days.split(',').includes(todayDay)) isChecked = true;
+        }
+
+        displayItems.push({
+          id: c.id,
+          name: c.name,
+          from: c.from || '',
+          to: c.to || '',
+          time: activeTime,
+          vehicleId: activeVehicleId,
+          isChecked: isChecked,
+          label: typeLabel
+        });
+      });
+
+      // マスタにはないが、スプレッドに直接手入力された完全スポットの会社があれば追加
+      advanceDispatches.forEach(a => {
+        if (!displayItems.some(item => item.name === a.name)) {
+          displayItems.push({
+            id: 'ADV_' + Date.now() + Math.random(),
+            name: a.name,
+            from: a.from || '',
+            to: a.to || '',
+            time: a.time || '',
+            vehicleId: a.vehicleId || '',
+            isChecked: true,
+            label: `単発スポット予定（事前手入力）`
+          });
+        }
+      });
+
+      if (displayItems.length === 0) {
+        selectorContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">予定またはマスタがありません。マスタを登録するかスプレッドへ入力してください。</p>';
+        return;
+      }
+
+      // 画面への描画
+      displayItems.forEach(item => {
+        let vehicleOptions = '<option value="">-- 車両選択 --</option>';
+        db.vehicles.forEach(v => {
+          vehicleOptions += `<option value="${v.id}" ${v.id == item.vehicleId ? 'selected' : ''}>${v.name}</option>`;
         });
 
-        activeRoutes.forEach(r => {
-          const v = db.vehicles.find(v => v.id == r.vehicleId);
-          const isSpot = r.days.includes('-');
-          const timeBadgeColor = r.time === '時間指定なし' ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-800';
-          list.innerHTML += `
-            <div class="border-b last:border-0 pb-3 last:pb-0 flex justify-between items-center">
+        selectorContainer.innerHTML += `
+          <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 bg-gray-50/50">
+            <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[180px]">
+              <input type="checkbox" id="chk-${item.id}" data-name="${item.name}" data-from="${item.from}" data-to="${item.to}" ${item.isChecked ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
               <div>
-                <span class="text-xs font-bold px-2 py-0.5 rounded mr-2 ${timeBadgeColor}">${r.time}</span>
-                ${isSpot ? '<span class="text-xs bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded mr-2">不定期</span>' : ''}
-                <strong class="text-base">${r.name}</strong>
-                <p class="text-xs text-gray-500 mt-1">${r.from || '---'} ➔ ${r.to || '---'} （担当: ${v ? v.name : '未割り当て'}）</p>
+                <span>${item.name}</span>
+                <span class="block text-[10px] text-gray-400 font-normal">${item.label} ${item.from ? item.from+'➔'+item.to : ''}</span>
               </div>
+            </label>
+            <div class="flex items-center gap-2 flex-1 justify-end min-w-[240px]">
+              <input type="time" id="time-${item.id}" value="${item.time}" class="border p-1.5 rounded-lg text-xs bg-white w-24">
+              <select id="vec-${item.id}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[140px]">${vehicleOptions}</select>
+            </div>
+          </div>`;
+      });
+
+      // ドライバー用の確定リスト描画（アプリ確定データ、または確定がない場合は事前手入力データでチェック済みのもの）
+      let activeRuns = [];
+      if (todaySavedDispatches.length > 0) {
+        activeRuns = todaySavedDispatches.filter(s => s.days === 'GO');
+      } else {
+        activeRuns = displayItems.filter(i => i.isChecked);
+      }
+
+      if (activeRuns.length === 0) {
+        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">本日の運行はまだ確定していないか、予定がありません。</p>';
+      } else {
+        activeRuns.forEach(s => {
+          const v = db.vehicles.find(vec => vec.id == s.vehicleId);
+          finalListContainer.innerHTML += `
+            <div class="border-b last:border-0 pb-2 last:pb-0 flex justify-between items-center text-sm">
+              <div>
+                <span class="text-xs font-bold px-2 py-0.5 rounded mr-2 bg-blue-100 text-blue-800">${s.time || '時間指定なし'}</span>
+                <strong class="text-gray-900">${s.name}</strong>
+                ${s.from ? `<span class="text-xs text-gray-500 ml-2">(${s.from} ➔ ${s.to})</span>` : ''}
+              </div>
+              <span class="text-xs font-medium px-2 py-1 bg-gray-100 rounded text-gray-700">🚚 ${v ? v.name : '車両未定'}</span>
             </div>`;
         });
       }
 
-      // アラート表示（30日前）
+      // アラート描画
+      const alerts = document.getElementById('today-alerts');
+      alerts.innerHTML = '';
       let alertCount = 0;
-      const todayTime = new Date().getTime();
       db.vehicles.forEach(v => {
         if (v.shaken) {
-          const days = Math.ceil((new Date(v.shaken).getTime() - todayTime) / (1000*60*60*24));
+          const days = Math.ceil((new Date(v.shaken).getTime() - todayObj.getTime()) / (1000*60*60*24));
           if (days <= 30) {
             alertCount++;
-            alerts.innerHTML += `<div class="text-sm text-red-600 bg-red-50 p-2 rounded border border-red-200">⚠ <strong>${v.name}</strong> の車検が残り <strong>${days < 0 ? '期限切れ' : days + '日'}</strong> です（${v.shaken}）</div>`;
-          }
-        }
-        if (v.insurance) {
-          const days = Math.ceil((new Date(v.insurance).getTime() - todayTime) / (1000*60*60*24));
-          if (days <= 30) {
-            alertCount++;
-            alerts.innerHTML += `<div class="text-sm text-orange-600 bg-orange-50 p-2 rounded border border-orange-200">⚠ <strong>${v.name}</strong> の任意保険更新が残り <strong>${days < 0 ? '期限切れ' : days + '日'}</strong> です（${v.insurance}）</div>`;
+            alerts.innerHTML += `<div class="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">⚠ <strong>${v.name}</strong> 車検残${days < 0 ? '切れ' : days + '日'} (${v.shaken})</div>`;
           }
         }
       });
-      if (alertCount === 0) {
-        alerts.innerHTML = '<p class="text-green-600 text-sm font-medium">現在、期限が近い車両はありません。安全運転を！</p>';
-      }
+      if(alertCount===0) alerts.innerHTML = '<p class="text-xs text-green-600">期限の近い車両はありません。</p>';
     }
 
-    // --- ② カレンダー画面の描画（不定期便対応） ---
+    // 今日の配車を保存
+    function saveTodayDispatch() {
+      updateStatus('loading', '本日の運行計画を保存中...');
+      
+      const checkboxes = document.querySelectorAll('#today-dispatch-selector input[type="checkbox"]');
+      let completed = 0;
+      
+      if(checkboxes.length === 0) { loadAllData(); return; }
+
+      checkboxes.forEach((chk) => {
+        const idAttr = chk.id.replace('chk-', '');
+        const isChecked = chk.checked;
+        const timeVal = document.getElementById(`time-${idAttr}`).value;
+        const vecVal = document.getElementById(`vec-${idAttr}`).value;
+        const name = chk.getAttribute('data-name');
+        const from = chk.getAttribute('data-from');
+        const to = chk.getAttribute('data-to');
+
+        // 保存用の一意なID
+        const dispatchId = 'D_' + todayStr + '_' + name.replace(/\s+/g, '');
+
+        const rowData = {
+          id: dispatchId,
+          name: name,
+          from: from,
+          to: to,
+          time: timeVal,
+          vehicleId: vecVal,
+          days: isChecked ? 'GO' : 'SKIP',
+          note: todayStr
+        };
+
+        fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData })
+        }).then(() => {
+          completed++;
+          if (completed === checkboxes.length) {
+            setTimeout(loadAllData, 1000);
+          }
+        });
+      });
+    }
+
+    // --- ② カレンダー実績表示 ---
     function changeMonth(diff) {
       currentMonth += diff;
       if (currentMonth > 12) { currentYear++; currentMonth = 1; }
@@ -393,442 +455,214 @@
       const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
       const lastDate = new Date(currentYear, currentMonth, 0).getDate();
 
-      for (let i = 0; i < firstDay; i++) {
-        grid.innerHTML += '<div class="h-16 bg-gray-50 border border-gray-100 rounded"></div>';
-      }
+      for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="h-14 bg-gray-50 border border-gray-100 rounded"></div>';
 
       for (let date = 1; date <= lastDate; date++) {
-        const dObj = new Date(currentYear, currentMonth - 1, date);
-        const dayStr = ['日','月','火','水','木','金','土'][dObj.getDay()];
         const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
         
-        // 定期便（曜日一致）または不定期便（日付一致）があるかチェック
-        const hasRoute = db.routes.some(r => {
-          if(!r.days) return false;
-          return r.days.split(',').includes(dayStr) || r.days === formattedDate;
-        });
-
+        // 該当日に「GO（運行する）」となっている実績・または事前予定があるか
+        const hasHistory = db.routes.some(r => r.note && r.note.replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
         const hasShaken = db.vehicles.some(v => v.shaken === formattedDate);
 
         let indicators = '';
-        if (hasRoute) indicators += '<span class="w-2 h-2 rounded-full bg-blue-500 inline-block"></span>';
-        if (hasShaken) indicators += '<span class="w-2 h-2 rounded-full bg-green-500 inline-block"></span>';
+        if (hasHistory) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>';
+        if (hasShaken) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>';
 
         grid.innerHTML += `
-          <button onclick="showCalendarDetail(${date}, '${dayStr}')" class="h-16 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-blue-50 transition">
+          <button onclick="showCalendarDetail(${date})" class="h-14 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-gray-50">
             <span class="text-xs font-bold text-gray-700">${date}</span>
-            <div class="flex gap-1 justify-end">${indicators}</div>
+            <div class="flex gap-0.5 justify-end">${indicators}</div>
           </button>`;
       }
     }
 
-    function showCalendarDetail(date, dayStr) {
+    function showCalendarDetail(date) {
       const detail = document.getElementById('calendar-detail');
       const dateTitle = document.getElementById('calendar-detail-date');
       const list = document.getElementById('calendar-detail-list');
       detail.classList.remove('hidden');
-      dateTitle.innerText = `${currentYear}年${currentMonth}月${date}日（${dayStr}）の日程`;
+      
+      const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+      dateTitle.innerText = `${formattedDate} の運行リスト`;
       list.innerHTML = '';
 
-      const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-      const activeRoutes = db.routes.filter(r => {
-        if(!r.days) return false;
-        return r.days.split(',').includes(dayStr) || r.days === formattedDate;
-      });
-
-      if (activeRoutes.length > 0) {
-        activeRoutes.forEach(r => {
-          const isSpot = r.days.includes('-');
-          const typeLabel = isSpot ? '【不定期】' : '【定期】';
-          list.innerHTML += `<div class="text-sm p-2 bg-blue-50 rounded text-blue-900">🚚 <strong>${r.time}</strong> ${typeLabel} ${r.name} (${r.from}➔${r.to})</div>`;
+      const dayDispatches = db.routes.filter(r => r.note && r.note.replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
+      if (dayDispatches.length > 0) {
+        dayDispatches.forEach(r => {
+          const v = db.vehicles.find(vec => vec.id == r.vehicleId);
+          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】 ${r.note.startsWith('D_') ? '' : '(事前予定)'}</div>`;
         });
-      }
-
-      const shakenVehicles = db.vehicles.filter(v => v.shaken === formattedDate);
-      if (shakenVehicles.length > 0) {
-        shakenVehicles.forEach(v => {
-          list.innerHTML += `<div class="text-sm p-2 bg-green-50 rounded text-green-900">🛠 <strong>車検当日:</strong> ${v.name} (${v.type})</div>`;
-        });
-      }
-
-      if (activeRoutes.length === 0 && shakenVehicles.length === 0) {
-        list.innerHTML = '<p class="text-sm text-gray-500">予定はありません。</p>';
+      } else {
+        list.innerHTML = '<p class="text-xs text-gray-400">この日の稼働または予定はありません。</p>';
       }
     }
 
-    // --- ③ 便の管理画面 ---
-    function renderRoutes() {
-      const list = document.getElementById('routes-list');
+    // --- ③ 取引先マスタ管理 ---
+    function renderCompanies() {
+      const list = document.getElementById('companies-list');
       list.innerHTML = '';
-      db.routes.forEach(r => {
-        const v = db.vehicles.find(v => v.id == r.vehicleId);
-        const isSpot = r.days && r.days.includes('-'); // ハイフン入り＝日付指定（不定期）
-        const timeBadgeColor = r.time === '時間指定なし' ? 'bg-gray-100 text-gray-700' : 'bg-blue-50 text-blue-600';
-
+      const companies = db.routes.filter(r => r.id && r.id.startsWith('C'));
+      
+      companies.forEach(c => {
         list.innerHTML += `
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
             <div>
-              <div class="flex justify-between items-start mb-2">
-                <div>
-                  ${isSpot ? '<span class="text-[10px] bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 rounded mr-1">不定期</span>' : '<span class="text-[10px] bg-blue-100 text-blue-800 font-bold px-1.5 py-0.5 rounded mr-1">定期</span>'}
-                  <h4 class="font-bold text-base text-gray-900 inline-block">${r.name}</h4>
-                </div>
-                <span class="text-xs font-bold px-2 py-0.5 rounded ${timeBadgeColor}">${r.time || '時間未設定'}</span>
+              <div class="flex justify-between items-start mb-1">
+                <h4 class="font-bold text-gray-900">${c.name}</h4>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days}</span>
               </div>
-              <p class="text-sm text-gray-600">${r.from || '未設定'} ➔ ${r.to || '未設定'}</p>
-              <p class="text-xs text-gray-500 mt-1">車両: ${v ? v.name : '未指定'}</p>
-              <div class="flex gap-1 flex-wrap mt-2">
-                ${isSpot ? `<span class="text-[10px] bg-purple-50 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 font-bold">運行日: ${r.days}</span>` : 
-                  ['月','火','水','木','金','土','日'].map(d => r.days && r.days.includes(d) ? `<span class="text-[10px] bg-gray-200 px-1.5 py-0.5 rounded font-bold">${d}</span>` : '').join('')}
-              </div>
+              <p class="text-xs text-gray-500">${c.from || '---'} ➔ ${c.to || '---'} ${c.time ? '（定時: '+c.time+'）' : ''}</p>
+              ${c.note ? `<p class="text-xs bg-yellow-50 text-yellow-700 p-1.5 rounded mt-2 border border-yellow-100">💡 ${c.note}</p>` : ''}
             </div>
-            <div class="flex justify-end gap-2 mt-4 pt-2 border-t border-gray-50 text-xs">
-              <button onclick="openRouteModal(${JSON.stringify(r).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline font-medium">編集</button>
-              <button onclick="deleteRow('routes', '${r.id}')" class="text-red-500 hover:underline">削除</button>
+            <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
+              <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
+              <button onclick="deleteRow('routes', '${c.id}')" class="text-red-500 hover:underline">削除</button>
             </div>
           </div>`;
       });
     }
 
-    // ★ 定期（曜日）/不定期（日付）の入力切り替え
-    function setRouteType(type) {
-      currentRouteType = type;
-      const btnWeekly = document.getElementById('btn-type-weekly');
-      const btnDate = document.getElementById('btn-type-date');
-      const areaWeekly = document.getElementById('schedule-weekly-area');
-      const areaDate = document.getElementById('schedule-date-area');
-
-      if (type === 'weekly') {
-        btnWeekly.className = "w-full py-1.5 rounded-md font-medium bg-white shadow-xs text-blue-600";
-        btnDate.className = "w-full py-1.5 rounded-md font-medium text-gray-600";
-        areaWeekly.classList.remove('hidden');
-        areaDate.classList.add('hidden');
-      } else {
-        btnWeekly.className = "w-full py-1.5 rounded-md font-medium text-gray-600";
-        btnDate.className = "w-full py-1.5 rounded-md font-medium bg-white shadow-xs text-purple-600";
-        areaWeekly.classList.add('hidden');
-        areaDate.classList.remove('hidden');
-      }
-    }
-
-    // ★ 時間入力の有効/無効切り替え
-    function toggleTimeInput() {
-      const chk = document.getElementById('r-time-none');
-      const timeInput = document.getElementById('r-time');
-      if (chk.checked) {
-        timeInput.value = '';
-        timeInput.disabled = true;
-      } else {
-        timeInput.disabled = false;
-      }
-    }
-
-    function openRouteModal(data = null) {
-      document.getElementById('route-modal').classList.remove('hidden');
-      
-      // 曜日チェックボックスクリア
-      document.querySelectorAll('.r-days').forEach(cb => { 
-        cb.checked = false; 
-        cb.parentElement.className = 'border p-2 rounded cursor-pointer bg-white text-gray-800'; 
-      });
-
-      // 時間指定なしクリア
-      document.getElementById('r-time-none').checked = false;
-      document.getElementById('r-time').disabled = false;
-      
+    function openCompanyModal(data = null) {
+      document.getElementById('company-modal').classList.remove('hidden');
       if (data) {
-        document.getElementById('route-modal-title').innerText = '運行便の編集';
-        document.getElementById('r-id').value = data.id;
-        document.getElementById('r-name').value = data.name;
-        document.getElementById('r-from').value = data.from;
-        document.getElementById('r-to').value = data.to;
-        document.getElementById('r-vehicleId').value = data.vehicleId || '';
-        document.getElementById('r-note').value = data.note || '';
-
-        // 時刻の設定（時間指定なし対応）
-        if (data.time === '時間指定なし') {
-          document.getElementById('r-time-none').checked = true;
-          document.getElementById('r-time').value = '';
-          document.getElementById('r-time').disabled = true;
-        } else {
-          document.getElementById('r-time').value = data.time || '';
-        }
-
-        // 定期便か不定期便かの判定
-        if (data.days && data.days.includes('-')) {
-          // 不定期便（日付指定）
-          setRouteType('date');
-          document.getElementById('r-specific-date').value = data.days;
-        } else {
-          // 定期便（曜日指定）
-          setRouteType('weekly');
-          document.getElementById('r-specific-date').value = '';
-          if (data.days) {
-            document.querySelectorAll('.r-days').forEach(cb => {
-              if (data.days.split(',').includes(cb.value)) {
-                cb.checked = true;
-                cb.parentElement.className = 'border p-2 rounded cursor-pointer bg-blue-600 text-white font-bold';
-              }
-            });
-          }
-        }
+        document.getElementById('company-modal-title').innerText = '取引先の修正';
+        document.getElementById('c-id').value = data.id; document.getElementById('c-name').value = data.name;
+        document.getElementById('c-from').value = data.from || ''; document.getElementById('c-to').value = data.to || '';
+        document.getElementById('c-time').value = data.time || ''; document.getElementById('c-pattern').value = data.days || '毎営業日';
+        document.getElementById('c-note').value = data.note || '';
       } else {
-        // 新規登録
-        document.getElementById('route-modal-title').innerText = '運行便の登録';
-        document.getElementById('r-id').value = 'R' + Date.now();
-        document.getElementById('r-name').value = '';
-        document.getElementById('r-from').value = '';
-        document.getElementById('r-to').value = '';
-        document.getElementById('r-time').value = '';
-        document.getElementById('r-vehicleId').value = '';
-        document.getElementById('r-specific-date').value = '';
-        document.getElementById('r-note').value = '';
-        setRouteType('weekly');
+        document.getElementById('company-modal-title').innerText = '取引先の新規登録';
+        document.getElementById('c-id').value = 'C' + Date.now(); document.getElementById('c-name').value = '';
+        document.getElementById('c-from').value = ''; document.getElementById('c-to').value = '';
+        document.getElementById('c-time').value = ''; document.getElementById('c-pattern').value = '毎営業日';
+        document.getElementById('c-note').value = '';
       }
     }
-
-    // 曜日のチェックボックス装飾
-    document.querySelectorAll('.r-days').forEach(cb => {
-      cb.addEventListener('change', function() {
-        if (this.checked) {
-          this.parentElement.className = 'border p-2 rounded cursor-pointer bg-blue-600 text-white font-bold';
-        } else {
-          this.parentElement.className = 'border p-2 rounded cursor-pointer bg-white text-gray-800';
-        }
-      });
-    });
-
-    function closeRouteModal() { document.getElementById('route-modal').classList.add('hidden'); }
-
-    function submitRoute() {
-      const id = document.getElementById('r-id').value;
-      const name = document.getElementById('r-name').value;
-      if (!name) { alert('路線名を入力してください'); return; }
-
-      // 運行スケジュール（days）の取得
-      let scheduleData = '';
-      if (currentRouteType === 'weekly') {
-        scheduleData = Array.from(document.querySelectorAll('.r-days:checked')).map(cb => cb.value).join(',');
-        if (!scheduleData) { alert('運行曜日を1つ以上選択してください'); return; }
-      } else {
-        scheduleData = document.getElementById('r-specific-date').value;
-        if (!scheduleData) { alert('運行日（日付）を指定してください'); return; }
-      }
-
-      // 時刻データの判定
-      const isTimeNone = document.getElementById('r-time-none').checked;
-      const timeVal = isTimeNone ? '時間指定なし' : document.getElementById('r-time').value;
-
+    function closeCompanyModal() { document.getElementById('company-modal').classList.add('hidden'); }
+    
+    function submitCompany() {
+      const id = document.getElementById('c-id').value;
+      const name = document.getElementById('c-name').value;
+      if (!name) { alert('会社名を入力してください'); return; }
       const rowData = {
-        id: id,
-        name: name,
-        from: document.getElementById('r-from').value,
-        to: document.getElementById('r-to').value,
-        time: timeVal,
-        vehicleId: document.getElementById('r-vehicleId').value,
-        days: scheduleData,
-        note: document.getElementById('r-note').value
+        id: id, name: name,
+        from: document.getElementById('c-from').value, to: document.getElementById('c-to').value,
+        time: document.getElementById('c-time').value, vehicleId: '',
+        days: document.getElementById('c-pattern').value, note: document.getElementById('c-note').value
       };
-      
-      upsertRow('routes', id, rowData);
-      closeRouteModal();
+      upsertRow('routes', id, rowData); closeCompanyModal();
     }
 
-    // --- ④ 車両の管理 ---
+    // --- ④ 車両管理 ---
     function renderVehicles() {
-      const list = document.getElementById('vehicles-list');
-      list.innerHTML = '';
+      const list = document.getElementById('vehicles-list'); list.innerHTML = '';
       db.vehicles.forEach(v => {
         list.innerHTML += `
-          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between">
-            <div>
-              <h4 class="font-bold text-base text-gray-900">${v.name}</h4>
-              <p class="text-sm text-gray-500">${v.type || '車種未指定'}</p>
-              <div class="mt-3 space-y-1 text-xs">
-                <p class="text-gray-600">🛠 車検満了: <span class="font-medium">${v.shaken || '未登録'}</span></p>
-                <p class="text-gray-600">📄 任意保険: <span class="font-medium">${v.insurance || '未登録'}</span></p>
-              </div>
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
+            <div><h4 class="font-bold text-gray-900">${v.name}</h4><p class="text-xs text-gray-400">${v.type || '車種未指定'}</p>
+              <div class="mt-2 space-y-0.5 text-xs text-gray-600"><p>🛠 車検満了: ${v.shaken || '未登録'}</p><p>📄 任意保険: ${v.insurance || '未登録'}</p></div>
             </div>
-            <div class="flex justify-end gap-2 mt-4 pt-2 border-t border-gray-50 text-xs">
-              <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">編集</button>
+            <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
+              <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
               <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:underline">削除</button>
             </div>
           </div>`;
       });
     }
-
     function openVehicleModal(data = null) {
       document.getElementById('vehicle-modal').classList.remove('hidden');
       if (data) {
-        document.getElementById('vehicle-modal-title').innerText = '車両情報の編集';
-        document.getElementById('v-id').value = data.id;
-        document.getElementById('v-name').value = data.name;
-        document.getElementById('v-type').value = data.type || '';
-        document.getElementById('v-shaken').value = data.shaken || '';
-        document.getElementById('v-insurance').value = data.insurance || '';
-        document.getElementById('v-note').value = data.note || '';
+        document.getElementById('v-id').value = data.id; document.getElementById('v-name').value = data.name;
+        document.getElementById('v-type').value = data.type||''; document.getElementById('v-shaken').value = data.shaken||'';
+        document.getElementById('v-insurance').value = data.insurance||''; document.getElementById('v-note').value = data.note||'';
       } else {
-        document.getElementById('vehicle-modal-title').innerText = '車両の新規登録';
-        document.getElementById('v-id').value = 'V' + Date.now();
-        document.getElementById('v-name').value = '';
-        document.getElementById('v-type').value = '';
-        document.getElementById('v-shaken').value = '';
-        document.getElementById('v-insurance').value = '';
-        document.getElementById('v-note').value = '';
+        document.getElementById('v-id').value = 'V' + Date.now(); document.getElementById('v-name').value = '';
+        document.getElementById('v-type').value = ''; document.getElementById('v-shaken').value = '';
+        document.getElementById('v-insurance').value = ''; document.getElementById('v-note').value = '';
       }
     }
-
     function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
-
     function submitVehicle() {
       const id = document.getElementById('v-id').value;
       const rowData = {
-        id: id,
-        name: document.getElementById('v-name').value,
-        type: document.getElementById('v-type').value,
-        shaken: document.getElementById('v-shaken').value,
-        insurance: document.getElementById('v-insurance').value,
-        note: document.getElementById('v-note').value
+        id: id, name: document.getElementById('v-name').value, type: document.getElementById('v-type').value,
+        shaken: document.getElementById('v-shaken').value, insurance: document.getElementById('v-insurance').value, note: document.getElementById('v-note').value
       };
-      upsertRow('vehicles', id, rowData);
-      closeVehicleModal();
+      upsertRow('vehicles', id, rowData); closeVehicleModal();
     }
 
-    function updateVehicleDropdowns() {
-      const rSel = document.getElementById('r-vehicleId');
-      const cSel = document.getElementById('check-vehicle');
-      rSel.innerHTML = '<option value="">-- 未設定（指定なし） --</option>';
-      cSel.innerHTML = '';
-      db.vehicles.forEach(v => {
-        rSel.innerHTML += `<option value="${v.id}">${v.name}</option>`;
-        cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`;
-      });
+    function updateDropdowns() {
+      const cSel = document.getElementById('check-vehicle'); cSel.innerHTML = '';
+      db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
     }
 
-    // --- ⑤ 点検表画面 ---
+    // --- ⑤ 点検表ロジック ---
     function initCheckFormSelectors() {
-      const yearSel = document.getElementById('check-year');
-      const monthSel = document.getElementById('check-month');
+      const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
       yearSel.innerHTML = ''; monthSel.innerHTML = '';
-      for (let y = currentYear - 1; y <= currentYear + 1; y++) {
-        yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
-      }
-      for (let m = 1; m <= 12; m++) {
-        monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
-      }
+      for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
+      for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
     }
-
     function renderCheckForm() {
-      const container = document.getElementById('check-form-container');
-      container.innerHTML = '';
-
+      const container = document.getElementById('check-form-container'); container.innerHTML = '';
       const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
-
       categories.forEach(cat => {
-        let catHtml = `<div class="space-y-3">
-          <h3 class="text-sm font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-lg">${cat}</h3>`;
-        
-        const items = CHECK_ITEMS.filter(i => i.category === cat);
-        items.forEach(item => {
+        let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
+        CHECK_ITEMS.filter(i => i.category === cat).forEach(item => {
           catHtml += `
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-2 border-b border-gray-50 gap-2">
-              <span class="text-sm text-gray-800">${item.label}</span>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-gray-50 text-sm">
+              <span class="text-gray-700">${item.label}</span>
               <div class="flex gap-1" id="btn-group-${item.key}">
-                <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-10 h-8 rounded border text-sm font-bold bg-white text-gray-400">○</button>
-                <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-10 h-8 rounded border text-sm font-bold bg-white text-gray-400">△</button>
-                <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-10 h-8 rounded border text-sm font-bold bg-white text-gray-400">×</button>
+                <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">○</button>
+                <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">△</button>
+                <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">×</button>
               </div>
             </div>`;
         });
-        catHtml += `</div>`;
-        container.innerHTML += catHtml;
+        container.innerHTML += catHtml + `</div>`;
       });
     }
-
     let currentMarks = {};
     function setMark(key, val) {
       currentMarks[key] = val;
-      ['○', '△', '×'].forEach(v => {
-        document.getElementById(`mark-${key}-${v}`).className = "w-10 h-8 rounded border text-sm font-bold bg-white text-gray-400 border-gray-200";
-      });
+      ['○', '△', '×'].forEach(v => { document.getElementById(`mark-${key}-${v}`).className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
       const activeBtn = document.getElementById(`mark-${key}-${val}`);
-      if (val === '○') activeBtn.className = "w-10 h-8 rounded text-sm font-bold bg-green-600 text-white border-green-600";
-      if (val === '△') activeBtn.className = "w-10 h-8 rounded text-sm font-bold bg-yellow-500 text-white border-yellow-500";
-      if (val === '×') activeBtn.className = "w-10 h-8 rounded text-sm font-bold bg-red-600 text-white border-red-600";
+      if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
+      if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
+      if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
     }
-
     function loadCheckData() {
       const vId = document.getElementById('check-vehicle').value;
       const year = document.getElementById('check-year').value;
       const month = document.getElementById('check-month').value;
-      
-      CHECK_ITEMS.forEach(item => {
-        currentMarks[item.key] = '';
-        ['○', '△', '×'].forEach(v => {
-          const btn = document.getElementById(`mark-${item.key}-${v}`);
-          if(btn) btn.className = "w-10 h-8 rounded border text-sm font-bold bg-white text-gray-400 border-gray-200";
-        });
-      });
-      document.getElementById('check-note').value = '';
-
-      if(!vId) return;
-
+      CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
+      document.getElementById('check-note').value = ''; if(!vId) return;
       const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
       if(records.length > 0) {
-        records.forEach(r => {
-          if(r.itemKey) setMark(r.itemKey, r.value);
-        });
+        records.forEach(r => { if(r.itemKey) setMark(r.itemKey, r.value); });
         document.getElementById('check-note').value = records[0].note || '';
       }
     }
-
     function saveCheckData() {
-      const vId = document.getElementById('check-vehicle').value;
-      if(!vId) { alert('車両を選択してください'); return; }
-
-      const unselected = CHECK_ITEMS.filter(i => !currentMarks[i.key]);
-      if(unselected.length > 0) {
-        if(!confirm(`未入力の項目が ${unselected.length} 件あります。このまま保存しますか？`)) return;
-      }
-
+      const vId = document.getElementById('check-vehicle').value; if(!vId) { alert('車両を選択してください'); return; }
       updateStatus('loading', '点検データを保存中...');
-      const payload = {
-        action: 'save_check',
-        sheet: 'checks',
-        vehicleId: vId,
-        year: document.getElementById('check-year').value,
-        month: document.getElementById('check-month').value,
-        marks: currentMarks,
-        note: document.getElementById('check-note').value,
-        savedAt: new Date().toLocaleString('ja-JP')
-      };
-
-      sendPostRequest(payload);
+      sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
     }
 
-    // --- 🌐 通信共通処理 ---
-    function upsertRow(sheet, id, rowData) {
-      updateStatus('loading', 'データを更新中...');
-      sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData });
-    }
-
-    function deleteRow(sheet, id) {
-      if (!confirm('本当に削除しますか？')) return;
-      updateStatus('loading', 'データを削除中...');
-      sendPostRequest({ action: 'delete', sheet: sheet, id: id });
-    }
-
+    // --- 🌐 通信共通 ---
+    function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
+    function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
     function sendPostRequest(payload) {
-      fetch(GAS_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      }).then(() => {
-        setTimeout(loadAllData, 1000);
-      }).catch(err => {
-        updateStatus('error', '通信エラーが発生しました: ' + err.message);
-      });
+      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(() => { setTimeout(loadAllData, 1000); })
+      .catch(err => { updateStatus('error', '通信エラー: ' + err.message); });
+    }
+    function updateStatus(type, text) {
+      const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
+      txt.innerText = text;
+      if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
+      else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
+      else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
     }
   </script>
 </body>
