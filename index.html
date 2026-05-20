@@ -185,13 +185,59 @@
       <div>
         <label class="block text-xs text-gray-500 mb-1">基本の運行パターン</label>
         <select id="c-pattern" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
-          <option value="毎営業日">毎営業日（月〜金 自動チェック）</option>
-          <option value="月,木">月・木 固定</option>
-          <option value="火,金">火・金 固定</option>
-          <option value="月,水,金">月・水・金 固定</option>
-          <option value="火,木">火・木 固定</option>
-          <option value="水">水曜 固定</option>
-          <option value="不定期・かんばん次第">不定期・かんばん次第（デフォルトチェックなし）</option>
+          <optgroup label="毎週">
+            <option value="毎営業日">毎営業日（月〜金）</option>
+            <option value="月">毎週 月曜</option>
+            <option value="火">毎週 火曜</option>
+            <option value="水">毎週 水曜</option>
+            <option value="木">毎週 木曜</option>
+            <option value="金">毎週 金曜</option>
+            <option value="月,水,金">毎週 月・水・金</option>
+            <option value="月,木">毎週 月・木</option>
+            <option value="火,金">毎週 火・金</option>
+            <option value="火,木">毎週 火・木</option>
+          </optgroup>
+          <optgroup label="隔週">
+            <option value="隔週月_奇">隔週 月曜（第1・3週）</option>
+            <option value="隔週月_偶">隔週 月曜（第2・4週）</option>
+            <option value="隔週火_奇">隔週 火曜（第1・3週）</option>
+            <option value="隔週火_偶">隔週 火曜（第2・4週）</option>
+            <option value="隔週水_奇">隔週 水曜（第1・3週）</option>
+            <option value="隔週水_偶">隔週 水曜（第2・4週）</option>
+            <option value="隔週木_奇">隔週 木曜（第1・3週）</option>
+            <option value="隔週木_偶">隔週 木曜（第2・4週）</option>
+            <option value="隔週金_奇">隔週 金曜（第1・3週）</option>
+            <option value="隔週金_偶">隔週 金曜（第2・4週）</option>
+          </optgroup>
+          <optgroup label="月1〜4回（第N曜日）">
+            <option value="第1月">第1月曜</option>
+            <option value="第2月">第2月曜</option>
+            <option value="第3月">第3月曜</option>
+            <option value="第4月">第4月曜</option>
+            <option value="第1火">第1火曜</option>
+            <option value="第2火">第2火曜</option>
+            <option value="第3火">第3火曜</option>
+            <option value="第4火">第4火曜</option>
+            <option value="第1水">第1水曜</option>
+            <option value="第2水">第2水曜</option>
+            <option value="第3水">第3水曜</option>
+            <option value="第4水">第4水曜</option>
+            <option value="第1木">第1木曜</option>
+            <option value="第2木">第2木曜</option>
+            <option value="第3木">第3木曜</option>
+            <option value="第4木">第4木曜</option>
+            <option value="第1金">第1金曜</option>
+            <option value="第2金">第2金曜</option>
+            <option value="第3金">第3金曜</option>
+            <option value="第4金">第4金曜</option>
+            <option value="第1月,第3月">第1・第3月曜</option>
+            <option value="第2月,第4月">第2・第4月曜</option>
+            <option value="第1金,第3金">第1・第3金曜</option>
+            <option value="第2金,第4金">第2・第4金曜</option>
+          </optgroup>
+          <optgroup label="その他">
+            <option value="不定期・かんばん次第">不定期・かんばん次第</option>
+          </optgroup>
         </select>
       </div>
       <div>
@@ -390,8 +436,7 @@ function renderFinalSchedule() {
       const adv = advanceGO.find(a => a.name === c.name);
       let go = false;
       if (adv) go = true;
-      else if (c.days === '毎営業日') go = todayObj.getDay() >= 1 && todayObj.getDay() <= 5;
-      else if (c.days) go = c.days.split(',').map(d=>d.trim()).includes(todayDay);
+      else go = matchesPattern(todayStr, c.days);
       if (go) activeRuns.push({ ...c, vehicleId: adv ? adv.vehicleId : c.vehicleId });
     });
     advanceGO.forEach(a => { if (!activeRuns.some(r => r.name === a.name)) activeRuns.push(a); });
@@ -434,15 +479,14 @@ function renderDispatchBuilder() {
   baseCompanies.forEach(c => {
     const saved = todaySaved.find(s => s.name === c.name);
     const advance = advanceGO.find(a => a.name === c.name);
-    let isChecked = false, activeTime = c.time || '', activeVehicleId = c.vehicleId || '', typeLabel = `パターン: ${c.days}`;
+    let isChecked = false, activeTime = c.time || '', activeVehicleId = c.vehicleId || '', typeLabel = `パターン: ${patternLabel(c.days)}`;
     if (saved) {
       isChecked = saved.days === 'GO'; activeTime = saved.time || ''; activeVehicleId = saved.vehicleId || '';
     } else if (advance) {
       isChecked = true; activeTime = advance.time || c.time || ''; activeVehicleId = advance.vehicleId || c.vehicleId || '';
       typeLabel = '⚠️ スプレッド事前予定あり';
     } else {
-      if (c.days === '毎営業日') isChecked = todayObj.getDay() >= 1 && todayObj.getDay() <= 5;
-      else if (c.days) isChecked = c.days.split(',').map(d=>d.trim()).includes(todayDay);
+      isChecked = matchesPattern(todayStr, c.days);
     }
     displayItems.push({ id: c.id, name: c.name, time: activeTime, vehicleId: activeVehicleId, isChecked, label: typeLabel });
   });
@@ -515,13 +559,58 @@ function getVehicleColor(vehicleId) {
   return { hex:'#A5B4FC', bg:'#EEF2FF', border:'#C7D2FE', text:'#4338CA' }; // 未定
 }
 
+// ==========================================
+// パターン判定共通関数
+// ==========================================
+function matchesPattern(dateStr, pattern) {
+  if (!pattern) return false;
+  const d = new Date(dateStr);
+  const dow = d.getDay();
+  const dowName = ['日','月','火','水','木','金','土'][dow];
+  const isWeekday = dow >= 1 && dow <= 5;
+  const parts = pattern.split(',').map(p => p.trim());
+  return parts.some(p => matchesSingle(d, dow, dowName, isWeekday, p));
+}
+
+function matchesSingle(d, dow, dowName, isWeekday, p) {
+  if (p === '毎営業日') return isWeekday;
+  if (p.includes('不定期')) return false;
+  // 隔週: 隔週月_奇 / 隔週月_偶
+  const bi = p.match(/^隔週([月火水木金土日])_(奇|偶)$/);
+  if (bi) {
+    const td = ['日','月','火','水','木','金','土'].indexOf(bi[1]);
+    if (dow !== td) return false;
+    const wn = Math.ceil(d.getDate() / 7);
+    return bi[2] === '奇' ? wn % 2 === 1 : wn % 2 === 0;
+  }
+  // 第N曜日: 第1月 / 第2金
+  const nth = p.match(/^第([1-4])([月火水木金土日])$/);
+  if (nth) {
+    const td = ['日','月','火','水','木','金','土'].indexOf(nth[2]);
+    if (dow !== td) return false;
+    return Math.ceil(d.getDate() / 7) === parseInt(nth[1]);
+  }
+  // 曜日名単体: 月/火/水...
+  if (['月','火','水','木','金','土','日'].includes(p)) return dowName === p;
+  return false;
+}
+
+function patternLabel(pattern) {
+  if (!pattern) return '';
+  if (pattern === '毎営業日') return '毎営業日（月〜金）';
+  if (pattern.includes('不定期')) return '不定期';
+  return pattern.split(',').map(p => {
+    const bi = p.match(/^隔週([月火水木金土日])_(奇|偶)$/);
+    if (bi) return `隔週${bi[1]}（${bi[2]==='奇'?'第1・3':'第2・4'}週）`;
+    const nth = p.match(/^第([1-4])([月火水木金土日])$/);
+    if (nth) return `第${nth[1]}${nth[2]}曜`;
+    if (['月','火','水','木','金','土','日'].includes(p)) return `毎週${p}曜`;
+    return p;
+  }).join('・');
+}
+
 function hasPatternOnDate(ds) {
-  const d = new Date(ds), dow = ['日','月','火','水','木','金','土'][d.getDay()], isWd = d.getDay()>=1&&d.getDay()<=5;
-  return db.routes.filter(r => r.id && r.id.startsWith('C')).some(c => {
-    if (c.days === '毎営業日') return isWd;
-    if (c.days) return c.days.split(',').map(x=>x.trim()).includes(dow);
-    return false;
-  });
+  return db.routes.filter(r => r.id && r.id.startsWith('C')).some(c => matchesPattern(ds, c.days));
 }
 
 function renderCalendar() {
@@ -553,9 +642,7 @@ function renderCalendar() {
     // 予定パターン（未確定）の車両ごとのドット
     const patterns = db.routes.filter(r => {
       if (!r.id||!r.id.startsWith('C')) return false;
-      if (r.days==='毎営業日') return isWd;
-      if (r.days) return r.days.split(',').map(x=>x.trim()).includes(dow);
-      return false;
+      return matchesPattern(ds, r.days);
     }).filter(c => !confirmed.some(conf => conf.name===c.name));
 
     const hasShaken = db.vehicles.some(v => v.shaken === ds);
@@ -604,27 +691,19 @@ function showCalendarDetail(date) {
   // 予定パターンを車両ごとにまとめて表示
   const patterns = db.routes.filter(r => {
     if (!r.id||!r.id.startsWith('C')) return false;
-    if (r.days==='毎営業日') return isWd;
-    if (r.days) return r.days.split(',').map(x=>x.trim()).includes(dow);
-    return false;
+    return matchesPattern(ds, r.days);
   }).filter(c => !confirmed.some(conf => conf.name===c.name));
 
   if (patterns.length > 0) {
     list.innerHTML += `<p class="text-xs font-bold text-gray-500 mb-1 ${confirmed.length>0?'mt-3':''}">◎ 予定パターン（未確定）</p>`;
-    // 車両ごとにグループ化
     const grouped = {};
-    patterns.forEach(p => {
-      const key = p.vehicleId || '__none__';
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(p);
-    });
+    patterns.forEach(p => { const key = p.vehicleId||'__none__'; if(!grouped[key])grouped[key]=[]; grouped[key].push(p); });
     Object.entries(grouped).forEach(([vid, routes]) => {
       const v = db.vehicles.find(vec => vec.id == vid);
       const c = getVehicleColor(vid === '__none__' ? null : vid);
-      const vLabel = v ? v.name : '車両未定';
       list.innerHTML += `<div class="rounded p-2 mb-1" style="background:${c.bg};border:1px solid ${c.border}">
-        <div class="text-xs font-bold mb-1" style="color:${c.text}">🚚 ${vLabel}</div>
-        ${routes.map(r => `<div class="text-xs pl-2" style="color:${c.text}">📋 ${r.time?'<strong>'+r.time+'</strong>　':''}${r.name}　<span style="opacity:0.6">${r.days}</span></div>`).join('')}
+        <div class="text-xs font-bold mb-1" style="color:${c.text}">🚚 ${v?v.name:'車両未定'}</div>
+        ${routes.map(r=>`<div class="text-xs pl-2" style="color:${c.text}">📋 ${r.time?'<strong>'+r.time+'</strong>　':''}${r.name}　<span style="opacity:0.6">${patternLabel(r.days)}</span></div>`).join('')}
       </div>`;
     });
   }
