@@ -500,18 +500,19 @@ function changeMonth(diff) {
 
 // 車両ごとの色（最大8台）
 const VEHICLE_COLORS = [
-  { dot:'bg-blue-500',  text:'text-blue-700',  bg:'bg-blue-50',  border:'border-blue-200',  hex:'#3B82F6' },
-  { dot:'bg-rose-500',  text:'text-rose-700',  bg:'bg-rose-50',  border:'border-rose-200',  hex:'#F43F5E' },
-  { dot:'bg-amber-500', text:'text-amber-700', bg:'bg-amber-50', border:'border-amber-200', hex:'#F59E0B' },
-  { dot:'bg-emerald-500',text:'text-emerald-700',bg:'bg-emerald-50',border:'border-emerald-200',hex:'#10B981' },
-  { dot:'bg-purple-500',text:'text-purple-700',bg:'bg-purple-50',border:'border-purple-200',hex:'#8B5CF6' },
-  { dot:'bg-cyan-500',  text:'text-cyan-700',  bg:'bg-cyan-50',  border:'border-cyan-200',  hex:'#06B6D4' },
-  { dot:'bg-pink-500',  text:'text-pink-700',  bg:'bg-pink-50',  border:'border-pink-200',  hex:'#EC4899' },
-  { dot:'bg-orange-500',text:'text-orange-700',bg:'bg-orange-50',border:'border-orange-200',hex:'#F97316' },
+  { hex:'#3B82F6', bg:'#EFF6FF', border:'#BFDBFE', text:'#1D4ED8' }, // blue
+  { hex:'#F43F5E', bg:'#FFF1F2', border:'#FECDD3', text:'#BE123C' }, // rose
+  { hex:'#F59E0B', bg:'#FFFBEB', border:'#FDE68A', text:'#B45309' }, // amber
+  { hex:'#10B981', bg:'#ECFDF5', border:'#A7F3D0', text:'#047857' }, // emerald
+  { hex:'#8B5CF6', bg:'#F5F3FF', border:'#DDD6FE', text:'#6D28D9' }, // purple
+  { hex:'#06B6D4', bg:'#ECFEFF', border:'#A5F3FC', text:'#0E7490' }, // cyan
+  { hex:'#EC4899', bg:'#FDF2F8', border:'#FBCFE8', text:'#9D174D' }, // pink
+  { hex:'#F97316', bg:'#FFF7ED', border:'#FED7AA', text:'#C2410C' }, // orange
 ];
 function getVehicleColor(vehicleId) {
   const idx = db.vehicles.findIndex(v => v.id == vehicleId);
-  return idx >= 0 ? VEHICLE_COLORS[idx % VEHICLE_COLORS.length] : { dot:'bg-indigo-300', text:'text-indigo-600', bg:'bg-indigo-50', border:'border-indigo-200', hex:'#A5B4FC' };
+  if (idx >= 0) return VEHICLE_COLORS[idx % VEHICLE_COLORS.length];
+  return { hex:'#A5B4FC', bg:'#EEF2FF', border:'#C7D2FE', text:'#4338CA' }; // 未定
 }
 
 function hasPatternOnDate(ds) {
@@ -531,9 +532,10 @@ function renderCalendar() {
   if (legendArea) {
     legendArea.innerHTML = db.vehicles.map((v,i) => {
       const c = VEHICLE_COLORS[i % VEHICLE_COLORS.length];
-      return `<span class="flex items-center gap-1 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-full ${c.dot} inline-block"></span>${v.name}</span>`;
-    }).join('') + `<span class="flex items-center gap-1 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-full bg-indigo-300 inline-block"></span>車両未定</span>` +
-    `<span class="flex items-center gap-1 text-xs text-gray-600"><span class="w-2.5 h-2.5 rounded-full bg-green-500 inline-block"></span>車検日</span>`;
+      return `<span class="flex items-center gap-1 text-xs text-gray-600"><span style="width:10px;height:10px;border-radius:50%;background:${c.hex};display:inline-block"></span>${v.name}</span>`;
+    }).join('') +
+    `<span class="flex items-center gap-1 text-xs text-gray-600"><span style="width:10px;height:10px;border-radius:50%;background:#A5B4FC;display:inline-block"></span>車両未定</span>` +
+    `<span class="flex items-center gap-1 text-xs text-gray-600"><span style="width:10px;height:10px;border-radius:50%;background:#10B981;display:inline-block"></span>車検日</span>`;
   }
 
   const grid = document.getElementById('calendar-grid');
@@ -562,16 +564,16 @@ function renderCalendar() {
     // 確定運行は塗りつぶしドット（車両色）
     confirmed.forEach(r => {
       const c = getVehicleColor(r.vehicleId);
-      dots += `<span class="w-1.5 h-1.5 rounded-full ${c.dot} inline-block" title="${r.name}"></span>`;
+      dots += `<span style="width:6px;height:6px;border-radius:50%;background:${c.hex};display:inline-block" title="${r.name}"></span>`;
     });
     // 予定パターンは薄いドット
     if (patterns.length > 0 && confirmed.length === 0) {
       patterns.forEach(r => {
         const c = getVehicleColor(r.vehicleId);
-        dots += `<span class="w-1.5 h-1.5 rounded-full opacity-40 ${c.dot} inline-block" title="${r.name}"></span>`;
+        dots += `<span style="width:6px;height:6px;border-radius:50%;background:${c.hex};opacity:0.35;display:inline-block" title="${r.name}"></span>`;
       });
     }
-    if (hasShaken) dots += '<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>';
+    if (hasShaken) dots += `<span style="width:6px;height:6px;border-radius:50%;background:#10B981;display:inline-block"></span>`;
 
     grid.innerHTML += `<button onclick="showCalendarDetail(${date})" class="h-14 bg-white border ${isToday?'border-blue-400 bg-blue-50':'border-gray-100'} rounded p-1 flex flex-col justify-between text-left hover:bg-gray-50">
       <span class="text-xs font-bold ${isToday?'text-blue-600':'text-gray-700'}">${date}</span>
@@ -595,7 +597,7 @@ function showCalendarDetail(date) {
     confirmed.sort((a,b)=>(a.time||'99:99')>(b.time||'99:99')?1:-1).forEach(r => {
       const v = db.vehicles.find(vec => vec.id == r.vehicleId);
       const c = getVehicleColor(r.vehicleId);
-      list.innerHTML += `<div class="text-xs p-2 rounded border ${c.bg} ${c.border} ${c.text}">🚚 <strong>${r.time||'未指定'}</strong>　${r.name}　【${v?v.name:'車両未定'}】</div>`;
+      list.innerHTML += `<div class="text-xs p-2 rounded" style="background:${c.bg};border:1px solid ${c.border};color:${c.text}">🚚 <strong>${r.time||'未指定'}</strong>　${r.name}　【${v?v.name:'車両未定'}】</div>`;
     });
   }
 
@@ -620,9 +622,9 @@ function showCalendarDetail(date) {
       const v = db.vehicles.find(vec => vec.id == vid);
       const c = getVehicleColor(vid === '__none__' ? null : vid);
       const vLabel = v ? v.name : '車両未定';
-      list.innerHTML += `<div class="rounded border ${c.border} ${c.bg} p-2 mb-1">
-        <div class="text-xs font-bold ${c.text} mb-1">🚚 ${vLabel}</div>
-        ${routes.map(r => `<div class="text-xs ${c.text} pl-2">📋 ${r.time?'<strong>'+r.time+'</strong>　':''}${r.name}　<span class="opacity-60">${r.days}</span></div>`).join('')}
+      list.innerHTML += `<div class="rounded p-2 mb-1" style="background:${c.bg};border:1px solid ${c.border}">
+        <div class="text-xs font-bold mb-1" style="color:${c.text}">🚚 ${vLabel}</div>
+        ${routes.map(r => `<div class="text-xs pl-2" style="color:${c.text}">📋 ${r.time?'<strong>'+r.time+'</strong>　':''}${r.name}　<span style="opacity:0.6">${r.days}</span></div>`).join('')}
       </div>`;
     });
   }
