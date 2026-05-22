@@ -409,7 +409,7 @@ function renderAlerts() {
   db.vehicles.forEach(v => {
     if (v.shaken) {
       const days = Math.ceil((new Date(v.shaken) - todayObj) / (1000*60*60*24));
-      if (days <= 30) alerts.push({ name: v.name, label: '車検', days, date: v.shaken });
+      if (days <= 60) alerts.push({ name: v.name, label: '車検', days, date: v.shaken });
     }
     if (v.insurance) {
       const days = Math.ceil((new Date(v.insurance) - todayObj) / (1000*60*60*24));
@@ -1016,7 +1016,7 @@ function renderVehicles() {
   db.vehicles.forEach(v => {
     const sd = v.shaken ? Math.ceil((new Date(v.shaken)-todayObj)/(1000*60*60*24)) : null;
     const si = v.insurance ? Math.ceil((new Date(v.insurance)-todayObj)/(1000*60*60*24)) : null;
-    const sdColor = sd!==null ? (sd<=7?'text-red-600 font-bold':sd<=30?'text-orange-500':'text-gray-600') : 'text-gray-400';
+    const sdColor = sd!==null ? (sd<=7?'text-red-600 font-bold':sd<=60?'text-orange-500':'text-gray-600') : 'text-gray-400';
     const siColor = si!==null ? (si<=7?'text-red-600 font-bold':si<=30?'text-orange-500':'text-gray-600') : 'text-gray-400';
     list.innerHTML += `
       <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
