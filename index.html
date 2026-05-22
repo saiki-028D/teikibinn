@@ -568,11 +568,25 @@ function renderDispatchBuilder() {
     return;
   }
 
-  displayItems.forEach(item => {
+  // 未チェック（上）→ チェック済み（下）に並び替え
+  const unchecked = displayItems.filter(i => !i.isChecked);
+  const checked   = displayItems.filter(i => i.isChecked);
+  const sorted = [...unchecked, ...checked];
+
+  // セパレーター挿入
+  if (unchecked.length > 0 && checked.length > 0) {
+    sorted.splice(unchecked.length, 0, { _separator: true });
+  }
+
+  sorted.forEach(item => {
+    if (item._separator) {
+      container.innerHTML += `<div class="flex items-center gap-2 my-1"><div class="flex-1 border-t border-dashed border-gray-300"></div><span class="text-[10px] text-gray-400 shrink-0">✅ 本日運行</span><div class="flex-1 border-t border-dashed border-gray-300"></div></div>`;
+      return;
+    }
     let vehicleOptions = '<option value="">-- 車両選択 --</option>';
     db.vehicles.forEach(v => { vehicleOptions += `<option value="${v.id}" ${v.id == item.vehicleId ? 'selected' : ''}>${v.name}</option>`; });
     container.innerHTML += `
-      <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 bg-gray-50/50">
+      <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 ${item.isChecked ? 'bg-blue-50/50 border-blue-200' : 'bg-gray-50/50 border-gray-200'}">
         <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[160px]">
           <input type="checkbox" id="chk-${item.id}" data-name="${item.name}" ${item.isChecked ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
           <div><span>${item.name}</span><span class="block text-[10px] text-gray-400 font-normal">${item.label}</span></div>
@@ -938,7 +952,7 @@ function renderCompanies() {
         <div>
           <div class="flex justify-between items-start mb-2">
             <h4 class="font-bold text-gray-900 text-base">${c.name}</h4>
-            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0 ml-2">${c.days}</span>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0 ml-2">${patternLabel(c.days)}</span>
           </div>
           <div class="space-y-1 text-xs text-gray-500">
             ${c.time ? `<p>🕐 デフォルト時刻: <strong>${c.time}</strong></p>` : '<p class="text-gray-400">時刻指定なし</p>'}
@@ -947,19 +961,21 @@ function renderCompanies() {
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
-          <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g,'&quot;')})" class="text-blue-600 hover:underline">修正</button>
-          <button onclick="deleteRow('routes','${c.id}')" class="text-red-500 hover:underline">削除</button>
+          <button onclick="openCompanyModalById('${c.id}')" class="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">✏️ 修正</button>
+          <button onclick="deleteRow('routes','${c.id}')" class="px-3 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100 font-medium">🗑 削除</button>
         </div>
       </div>`;
   });
 }
 
+function openCompanyModalById(id) {
+  const data = db.routes.find(r => r.id === id);
+  if (data) openCompanyModal(data);
+}
 function openCompanyModal(data=null) {
-  // 車両セレクトを更新
   const cVehicleSel = document.getElementById('c-vehicle');
   cVehicleSel.innerHTML = '<option value="">未設定</option>';
   db.vehicles.forEach(v => { cVehicleSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
-
   document.getElementById('company-modal').classList.remove('hidden');
   if (data) {
     document.getElementById('company-modal-title').innerText = '配送先の修正';
@@ -1014,19 +1030,25 @@ function renderVehicles() {
           </div>
         </div>
         <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
-          <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g,'&quot;')})" class="text-blue-600 hover:underline">修正</button>
-          <button onclick="deleteRow('vehicles','${v.id}')" class="text-red-500 hover:underline">削除</button>
+          <button onclick="openVehicleModalById('${v.id}')" class="px-3 py-1 bg-blue-50 text-blue-600 rounded hover:bg-blue-100 font-medium">✏️ 修正</button>
+          <button onclick="deleteRow('vehicles','${v.id}')" class="px-3 py-1 bg-red-50 text-red-500 rounded hover:bg-red-100 font-medium">🗑 削除</button>
         </div>
       </div>`;
   });
 }
+function openVehicleModalById(id) {
+  const data = db.vehicles.find(v => v.id === id);
+  if (data) openVehicleModal(data);
+}
 function openVehicleModal(data=null) {
   document.getElementById('vehicle-modal').classList.remove('hidden');
   if (data) {
+    document.getElementById('vehicle-modal-title').innerText = '車両の修正';
     document.getElementById('v-id').value=data.id; document.getElementById('v-name').value=data.name;
     document.getElementById('v-type').value=data.type||''; document.getElementById('v-shaken').value=data.shaken||'';
     document.getElementById('v-insurance').value=data.insurance||''; document.getElementById('v-note').value=data.note||'';
   } else {
+    document.getElementById('vehicle-modal-title').innerText = '車両の登録';
     document.getElementById('v-id').value='V'+Date.now(); document.getElementById('v-name').value='';
     document.getElementById('v-type').value=''; document.getElementById('v-shaken').value='';
     document.getElementById('v-insurance').value=''; document.getElementById('v-note').value='';
