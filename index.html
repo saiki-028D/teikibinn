@@ -161,6 +161,44 @@
     </div>
   </div>
 
+  <!-- 配送記録モーダル -->
+  <div id="record-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 max-h-[92vh] overflow-y-auto">
+      <div class="flex items-center gap-2 border-b pb-3">
+        <span class="text-xl">📝</span>
+        <div>
+          <h3 id="record-modal-title" class="text-base font-bold"></h3>
+          <p id="record-modal-date" class="text-xs text-gray-400"></p>
+        </div>
+      </div>
+
+      <!-- 写真アップロード -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-2">写真（複数選択可）</label>
+        <div id="record-photo-preview" class="flex gap-2 flex-wrap mb-2"></div>
+        <label class="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition text-sm text-gray-500">
+          <span class="text-xl">📷</span>
+          <span>写真を選択・撮影</span>
+          <input type="file" id="record-photos" accept="image/*" multiple capture="environment" class="hidden" onchange="previewPhotos(this)">
+        </label>
+      </div>
+
+      <!-- メモ -->
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">メモ・配送内容</label>
+        <textarea id="record-memo" rows="3" placeholder="例: 荷物3個、サイン済み、特記事項なし" class="w-full border p-2 rounded-lg text-sm"></textarea>
+      </div>
+
+      <!-- 保存済み情報 -->
+      <div id="record-saved-info" class="hidden bg-green-50 border border-green-200 rounded-lg p-3 text-xs text-green-700 space-y-1"></div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t text-sm">
+        <button onclick="closeRecordModal()" class="px-4 py-2 bg-gray-100 rounded-lg">閉じる</button>
+        <button onclick="saveRecord()" id="record-save-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition">💾 保存する</button>
+      </div>
+    </div>
+  </div>
+
   <!-- 配送先モーダル（車両選択付き） -->
   <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4 max-h-[90vh] overflow-y-auto">
@@ -272,7 +310,7 @@
 
 <script>
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
-let db = { vehicles: [], routes: [], checks: [] };
+let db = { vehicles: [], routes: [], checks: [], records: [] };
 let currentYear, currentMonth;
 let selectedVehicleFilter = 'all';
 
@@ -328,7 +366,7 @@ function switchTab(tabId) {
 function loadAllData() {
   updateStatus('loading', '最新情報を取得中...');
   let loadedCount = 0;
-  const sheets = ['vehicles', 'routes', 'checks'];
+  const sheets = ['vehicles', 'routes', 'checks', 'records'];
   sheets.forEach(sheet => {
     const cbName = `cb_${sheet}_${Date.now()}_${Math.random().toString(36).slice(2)}`;
     window[cbName] = function(response) {
@@ -421,12 +459,29 @@ function setVehicleFilter(id) {
   renderFinalSchedule();
 }
 
+// スポット便かどうかの判定（IDに関わらずdays=GO + noteに日付形式があればスポット）
+function isSpotRecord(r) {
+  return r.days === 'GO' && r.note && /\d{4}[-\/]\d{1,2}[-\/]\d{1,2}/.test(r.note);
+}
+// マスタレコードかどうか（C始まりIDでかつスポットでないもの）
+function isMasterRecord(r) {
+  return r.id && r.id.startsWith('C') && !isSpotRecord(r);
+}
+
 // 確定スケジュール
 function renderFinalSchedule() {
   const container = document.getElementById('today-final-list');
-  const baseCompanies = db.routes.filter(r => r.id && r.id.startsWith('C'));
-  const todaySaved = db.routes.filter(r => r.id && r.id.startsWith('D_') && r.note && r.note.replace(/\//g,'-').includes(todayStr));
-  const advanceGO = db.routes.filter(r => r.note && r.note.replace(/\//g,'-').includes(todayStr) && r.days === 'GO' && (!r.id || !r.id.startsWith('D_')));
+  const baseCompanies = db.routes.filter(r => isMasterRecord(r));
+  // D_始まり または days=GO+今日の日付 を両方拾う
+  const todaySaved = db.routes.filter(r =>
+    r.id && r.id.startsWith('D_') &&
+    r.note && r.note.replace(/\//g,'-').includes(todayStr)
+  );
+  const advanceGO = db.routes.filter(r =>
+    isSpotRecord(r) &&
+    r.note.replace(/\//g,'-').includes(todayStr) &&
+    !(r.id && r.id.startsWith('D_'))
+  );
 
   let activeRuns = [];
   if (todaySaved.length > 0) {
@@ -454,15 +509,21 @@ function renderFinalSchedule() {
   container.innerHTML = activeRuns.map(s => {
     const v = db.vehicles.find(vec => vec.id == s.vehicleId);
     const isConfirmed = s.id && s.id.startsWith('D_');
+    const hasRecord = db.records.some(r => r.date === todayStr && r.routeName === s.name);
     return `<div class="flex justify-between items-center p-3 rounded-lg border ${isConfirmed ? 'bg-blue-50 border-blue-200' : 'bg-indigo-50 border-indigo-200'} text-sm">
-      <div class="flex items-center gap-2">
-        <span class="text-xs font-bold px-2 py-0.5 rounded ${isConfirmed ? 'bg-blue-600 text-white' : 'bg-indigo-400 text-white'}">${s.time || '時間未定'}</span>
-        <div>
+      <div class="flex items-center gap-2 flex-1 min-w-0">
+        <span class="text-xs font-bold px-2 py-0.5 rounded shrink-0 ${isConfirmed ? 'bg-blue-600 text-white' : 'bg-indigo-400 text-white'}">${s.time || '時間未定'}</span>
+        <div class="min-w-0">
           <span class="font-bold text-gray-900">${s.name}</span>
           <span class="ml-1 text-[10px] text-gray-400">${isConfirmed ? '確定' : '予定パターン'}</span>
         </div>
       </div>
-      <span class="text-xs font-medium px-2 py-1 bg-white rounded border text-gray-700">🚚 ${v ? v.name : '車両未定'}</span>
+      <div class="flex items-center gap-2 shrink-0 ml-2">
+        <span class="text-xs font-medium px-2 py-1 bg-white rounded border text-gray-700">🚚 ${v ? v.name : '車両未定'}</span>
+        <button onclick="openRecordModal('${s.name}', '${todayStr}')" class="text-xs font-bold px-2 py-1 rounded border transition ${hasRecord ? 'bg-green-100 border-green-400 text-green-700' : 'bg-white border-gray-300 text-gray-500 hover:border-blue-400 hover:text-blue-600'}">
+          ${hasRecord ? '✅ 記録済' : '📝 記録'}
+        </button>
+      </div>
     </div>`;
   }).join('');
 }
@@ -471,9 +532,16 @@ function renderFinalSchedule() {
 function renderDispatchBuilder() {
   const container = document.getElementById('today-dispatch-selector');
   container.innerHTML = '';
-  const baseCompanies = db.routes.filter(r => r.id && r.id.startsWith('C'));
-  const todaySaved = db.routes.filter(r => r.id && r.id.startsWith('D_') && r.note && r.note.replace(/\//g,'-').includes(todayStr));
-  const advanceGO = db.routes.filter(r => r.note && r.note.replace(/\//g,'-').includes(todayStr) && r.days === 'GO' && (!r.id || !r.id.startsWith('D_')));
+  const baseCompanies = db.routes.filter(r => isMasterRecord(r));
+  const todaySaved = db.routes.filter(r =>
+    r.id && r.id.startsWith('D_') &&
+    r.note && r.note.replace(/\//g,'-').includes(todayStr)
+  );
+  const advanceGO = db.routes.filter(r =>
+    isSpotRecord(r) &&
+    r.note.replace(/\//g,'-').includes(todayStr) &&
+    !(r.id && r.id.startsWith('D_'))
+  );
 
   let displayItems = [];
   baseCompanies.forEach(c => {
@@ -637,30 +705,31 @@ function renderCalendar() {
     const isToday = ds === todayStr;
     const d = new Date(ds), dow = ['日','月','火','水','木','金','土'][d.getDay()], isWd = d.getDay()>=1&&d.getDay()<=5;
 
-    // 確定運行の車両ごとのドット
-    const confirmed = db.routes.filter(r => r.id && r.id.startsWith('D_') && r.note && r.note.replace(/\//g,'-').includes(ds) && r.days==='GO');
-    // 予定パターン（未確定）の車両ごとのドット
-    const patterns = db.routes.filter(r => {
-      if (!r.id||!r.id.startsWith('C')) return false;
-      return matchesPattern(ds, r.days);
-    }).filter(c => !confirmed.some(conf => conf.name===c.name));
+    // 確定運行（スポット便）
+    const confirmed = db.routes.filter(r =>
+      isSpotRecord(r) && r.note.replace(/\//g,'-').includes(ds)
+    );
+    // 予定パターン（マスタのみ）
+    const patterns = db.routes.filter(r =>
+      isMasterRecord(r) && matchesPattern(ds, r.days)
+    ).filter(c => !confirmed.some(conf => conf.name === c.name));
 
     const hasShaken = db.vehicles.some(v => v.shaken === ds);
 
     let dots = '';
-    // 確定運行は塗りつぶしドット（車両色）
+    // 確定運行は塗りつぶしSVGドット（車両色）
     confirmed.forEach(r => {
-      const c = getVehicleColor(r.vehicleId);
-      dots += `<span style="width:6px;height:6px;border-radius:50%;background:${c.hex};display:inline-block" title="${r.name}"></span>`;
+      const col = getVehicleColor(r.vehicleId).hex;
+      dots += `<svg width="7" height="7" viewBox="0 0 7 7" style="display:inline-block"><circle cx="3.5" cy="3.5" r="3.5" fill="${col}"/></svg>`;
     });
-    // 予定パターンは薄いドット
+    // 予定パターンは薄いSVGドット
     if (patterns.length > 0 && confirmed.length === 0) {
       patterns.forEach(r => {
-        const c = getVehicleColor(r.vehicleId);
-        dots += `<span style="width:6px;height:6px;border-radius:50%;background:${c.hex};opacity:0.35;display:inline-block" title="${r.name}"></span>`;
+        const col = getVehicleColor(r.vehicleId).hex;
+        dots += `<svg width="7" height="7" viewBox="0 0 7 7" style="display:inline-block"><circle cx="3.5" cy="3.5" r="3.5" fill="${col}" opacity="0.35"/></svg>`;
       });
     }
-    if (hasShaken) dots += `<span style="width:6px;height:6px;border-radius:50%;background:#10B981;display:inline-block"></span>`;
+    if (hasShaken) dots += `<svg width="7" height="7" viewBox="0 0 7 7" style="display:inline-block"><circle cx="3.5" cy="3.5" r="3.5" fill="#10B981"/></svg>`;
 
     grid.innerHTML += `<button onclick="showCalendarDetail(${date})" class="h-14 bg-white border ${isToday?'border-blue-400 bg-blue-50':'border-gray-100'} rounded p-1 flex flex-col justify-between text-left hover:bg-gray-50">
       <span class="text-xs font-bold ${isToday?'text-blue-600':'text-gray-700'}">${date}</span>
@@ -677,8 +746,10 @@ function showCalendarDetail(date) {
   const list = document.getElementById('calendar-detail-list');
   list.innerHTML = '';
 
-  // 確定運行
-  const confirmed = db.routes.filter(r => r.id && r.id.startsWith('D_') && r.note && r.note.replace(/\//g,'-').includes(ds) && r.days==='GO');
+  // 確定運行（スポット便：days=GO かつ noteに日付）
+  const confirmed = db.routes.filter(r =>
+    isSpotRecord(r) && r.note.replace(/\//g,'-').includes(ds)
+  );
   if (confirmed.length > 0) {
     list.innerHTML += '<p class="text-xs font-bold text-gray-600 mb-1">● 確定運行</p>';
     confirmed.sort((a,b)=>(a.time||'99:99')>(b.time||'99:99')?1:-1).forEach(r => {
@@ -688,11 +759,10 @@ function showCalendarDetail(date) {
     });
   }
 
-  // 予定パターンを車両ごとにまとめて表示
-  const patterns = db.routes.filter(r => {
-    if (!r.id||!r.id.startsWith('C')) return false;
-    return matchesPattern(ds, r.days);
-  }).filter(c => !confirmed.some(conf => conf.name===c.name));
+  // 予定パターンを車両ごとにまとめて表示（マスタのみ）
+  const patterns = db.routes.filter(r =>
+    isMasterRecord(r) && matchesPattern(ds, r.days)
+  ).filter(c => !confirmed.some(conf => conf.name === c.name));
 
   if (patterns.length > 0) {
     list.innerHTML += `<p class="text-xs font-bold text-gray-500 mb-1 ${confirmed.length>0?'mt-3':''}">◎ 予定パターン（未確定）</p>`;
@@ -715,8 +785,111 @@ function showCalendarDetail(date) {
     shakenVehs.forEach(v => { list.innerHTML += `<div class="text-xs p-2 bg-green-50 text-green-900 rounded border border-green-100">${v.name}</div>`; });
   }
 
-  if (confirmed.length===0&&patterns.length===0&&shakenVehs.length===0)
+  // 配送記録
+  const dayRecords = db.records.filter(r => String(r.date).replace(/\//g,'-') === ds);
+  if (dayRecords.length > 0) {
+    list.innerHTML += `<p class="text-xs font-bold text-gray-600 mb-1 mt-3">📝 配送記録</p>`;
+    dayRecords.forEach(r => {
+      const urls = r.photoUrls ? String(r.photoUrls).split(',').filter(u => u) : [];
+      list.innerHTML += `<div class="border border-gray-200 rounded-lg p-3 space-y-2 bg-white">
+        <div class="flex justify-between items-center">
+          <span class="text-xs font-bold text-gray-800">${r.routeName}</span>
+          <span class="text-[10px] text-gray-400">${r.savedAt}</span>
+        </div>
+        ${r.memo ? `<p class="text-xs text-gray-600 bg-gray-50 p-2 rounded">${r.memo}</p>` : ''}
+        ${urls.length > 0 ? `<div class="flex gap-2 flex-wrap">${urls.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-20 h-20 object-cover rounded border border-gray-200 hover:opacity-80 transition"></a>`).join('')}</div>` : ''}
+      </div>`;
+    });
+  }
+
+  if (confirmed.length===0&&patterns.length===0&&shakenVehs.length===0&&dayRecords.length===0)
     list.innerHTML = '<p class="text-xs text-gray-400">この日の予定・実績はありません。</p>';
+}
+
+// ==========================================
+// 配送記録
+// ==========================================
+let recordModalState = { routeName: '', date: '', photos: [] };
+
+function openRecordModal(routeName, date) {
+  recordModalState = { routeName, date, photos: [] };
+  document.getElementById('record-modal-title').textContent = routeName;
+  document.getElementById('record-modal-date').textContent = date;
+  document.getElementById('record-photos').value = '';
+  document.getElementById('record-photo-preview').innerHTML = '';
+  document.getElementById('record-memo').value = '';
+  document.getElementById('record-saved-info').classList.add('hidden');
+
+  // 既存の記録があれば表示
+  const existing = db.records.find(r => r.date === date && r.routeName === routeName);
+  if (existing) {
+    document.getElementById('record-memo').value = existing.memo || '';
+    const infoEl = document.getElementById('record-saved-info');
+    infoEl.classList.remove('hidden');
+    const urls = existing.photoUrls ? existing.photoUrls.split(',').filter(u => u) : [];
+    infoEl.innerHTML = `<div>📅 保存日時: <strong>${existing.savedAt}</strong></div>` +
+      (urls.length > 0 ? `<div class="flex gap-2 flex-wrap mt-1">${urls.map(u=>`<a href="${u}" target="_blank"><img src="${u}" class="w-16 h-16 object-cover rounded border"></a>`).join('')}</div>` : '');
+    const preview = document.getElementById('record-photo-preview');
+    if (urls.length > 0) {
+      preview.innerHTML = urls.map(u => `<a href="${u}" target="_blank"><img src="${u}" class="w-16 h-16 object-cover rounded border border-gray-200"></a>`).join('');
+    }
+  }
+  document.getElementById('record-modal').classList.remove('hidden');
+}
+
+function closeRecordModal() {
+  document.getElementById('record-modal').classList.add('hidden');
+  recordModalState.photos = [];
+}
+
+function previewPhotos(input) {
+  recordModalState.photos = [];
+  const preview = document.getElementById('record-photo-preview');
+  preview.innerHTML = '';
+  const files = Array.from(input.files);
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      recordModalState.photos.push({ data: e.target.result, mimeType: file.type });
+      const img = document.createElement('img');
+      img.src = e.target.result;
+      img.className = 'w-16 h-16 object-cover rounded border border-gray-200';
+      preview.appendChild(img);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function saveRecord() {
+  const btn = document.getElementById('record-save-btn');
+  btn.textContent = '⏳ 保存中...';
+  btn.disabled = true;
+
+  const recordId = `REC_${recordModalState.date}_${recordModalState.routeName.replace(/\s+/g,'')}`;
+  const savedAt = new Date().toLocaleString('ja-JP');
+
+  const payload = {
+    action: 'save_record',
+    recordId,
+    date: recordModalState.date,
+    routeName: recordModalState.routeName,
+    memo: document.getElementById('record-memo').value,
+    photos: recordModalState.photos,
+    savedAt
+  };
+
+  try {
+    await fetch(GAS_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    await new Promise(r => setTimeout(r, 1800));
+    btn.textContent = '💾 保存する';
+    btn.disabled = false;
+    closeRecordModal();
+    loadAllData();
+  } catch(err) {
+    btn.textContent = '💾 保存する';
+    btn.disabled = false;
+    alert('保存エラー: ' + err.message);
+  }
 }
 
 // ==========================================
@@ -753,7 +926,7 @@ function submitSpot() {
 function renderCompanies() {
   const list = document.getElementById('companies-list');
   list.innerHTML = '';
-  const companies = db.routes.filter(r => r.id && r.id.startsWith('C'));
+  const companies = db.routes.filter(r => isMasterRecord(r));
   if (companies.length === 0) {
     list.innerHTML = '<p class="text-sm text-gray-400 col-span-2 text-center py-8">配送先が登録されていません。「配送先を追加」から登録してください。</p>';
     return;
