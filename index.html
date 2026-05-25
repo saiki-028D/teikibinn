@@ -36,8 +36,8 @@
       </div>
 
       <div class="space-y-3">
-        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">本日の確定運行スケジュール</h2>
-        <div id="today-final-list" class="bg-white p-4 rounded-xl shadow-sm space-y-3"></div>
+        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">本日の確定運行（車両ごと）</h2>
+        <div id="today-final-list" class="space-y-4"></div>
       </div>
 
       <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 space-y-4">
@@ -48,6 +48,16 @@
         
         <p class="text-xs text-gray-500">※基本パターン、またはスプレッドシートに事前入力された本日の予定が自動チェックされています。</p>
         
+        <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 space-y-2">
+          <span class="text-xs font-bold text-blue-900 block">➕ 本日の臨時便・スポットを今すぐ追加</span>
+          <div class="flex gap-2">
+            <input type="text" id="quick-spot-name" placeholder="例: ○○急便（スポット）" class="flex-1 border bg-white p-2 rounded-lg text-xs">
+            <button onclick="addQuickSpot()" class="bg-blue-600 text-white text-xs px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition shrink-0">
+              追加
+            </button>
+          </div>
+        </div>
+
         <div id="today-dispatch-selector" class="space-y-3"></div>
 
         <div class="text-right pt-1">
@@ -150,7 +160,7 @@
           <span class="text-xs font-bold text-green-900 block border-b border-green-200 pb-1">🔄 引取（ひきとり）の記録</span>
           <div>
             <label class="block text-[11px] font-bold text-gray-500 mb-1">引取写真</label>
-            <label class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center bg-white hover:bg-green-50/50 transition cursor-pointer block">
+            <label class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center bg-white hover:bg-white-50/50 transition cursor-pointer block">
               <span class="text-xs text-green-700 font-bold block">📸 写真を撮影・選択</span>
               <span id="hikitori-file-status" class="text-[10px] text-gray-400 font-normal block mt-0.5">未選択</span>
               <input type="file" id="hikitori-photo" accept="image/*" class="hidden" onchange="updateFileLabel('hikitori')">
@@ -267,7 +277,7 @@
       { category: 'エンジンルーム', key: 'eng_5', label: 'ファンベルトの張り・損傷' },
       { category: '車両周り', key: 'ext_1', label: 'ランプ類（ヘッドライト、ウインカー、テール）の点灯・汚れ・損傷' },
       { category: '車両周り', key: 'ext_2', label: 'タイヤの空気圧、亀裂、異常な摩耗' },
-      { category: '車両周り', key: 'ext_3', label: 'タイヤの溝の深さ' },
+      { category: '車両周り', key: 'ext_3', label: 'タイヤの溝の depth' },
       { category: '車両周り', key: 'ext_4', label: 'ホイールナット・ボルトの緩み' },
       { category: '車両周り', key: 'ext_5', label: '水漏れ、油漏れの有無（車両下部）' },
       { category: '車両周り', key: 'ext_6', label: 'バックミラーの方向・汚れ・損傷' },
@@ -307,7 +317,6 @@
       document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600';
     }
 
-    // 【超軽量化】3つのシートデータを一撃1回でまとめて取得
     function loadAllData() {
       updateStatus('loading', '最新情報を高速取得中...');
       
@@ -324,7 +333,6 @@
       };
 
       const script = document.createElement('script');
-      // sheet=all を指定してまとめて取得を要請
       script.src = `${GAS_URL}?sheet=all&callback=callback_all&_=${Date.now()}`;
       document.body.appendChild(script);
     }
@@ -348,6 +356,33 @@
         container.classList.add('hidden');
         btn.innerHTML = '<span>＋ 他の曜日の取引先（臨時便用）を表示する</span>';
       }
+    }
+
+    // ④ スポット便の追加処理
+    function addQuickSpot() {
+      const input = document.getElementById('quick-spot-name');
+      const spotName = input.value.trim();
+      if (!spotName) {
+        alert('スポットの会社名・名称を入力してください');
+        return;
+      }
+      
+      updateStatus('loading', 'スポット追加中...');
+      const dispatchId = 'D_' + todayStr + '_' + spotName.replace(/\s+/g, '');
+      const rowData = {
+        id: dispatchId, name: spotName, from: '', to: '', time: '', vehicleId: '',
+        days: 'GO', note: todayStr // 最初からチェックONの状態で作成
+      };
+
+      fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData })
+      }).then(() => {
+        input.value = '';
+        setTimeout(loadAllData, 500);
+      });
     }
 
     function renderTodayDispatchBuilder() {
@@ -385,7 +420,7 @@
         if (todayRow) {
           isTodayPattern = true;
           isChecked = (todayRow.days === 'GO');
-          typeLabel = `📅 スプレッド日付入力あり (${todayRow.days})`;
+          typeLabel = todayRow.id.startsWith('M_') ? `パターン外の追加` : `📅 当日確定枠`;
         } else if (base) {
           if (base.days === '毎営業日') {
             isTodayPattern = true;
@@ -412,6 +447,9 @@
         else otherItems.push(itemObj);
       });
 
+      // ③ 【修正】チェックなしが上、チェックありが下に並ぶように並び替え
+      mainItems.sort((a, b) => a.isChecked - b.isChecked);
+
       const makeVehicleOptions = (selectedId) => {
         let options = '<option value="">-- 車両選択 --</option>';
         db.vehicles.forEach(v => {
@@ -422,7 +460,7 @@
 
       const createRowHtml = (item) => {
         return `
-          <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 bg-gray-50/50">
+          <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 ${item.isChecked ? 'bg-blue-50/20 border-blue-100' : 'bg-gray-50/50'}">
             <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[180px]">
               <input type="checkbox" id="chk-${item.id}" data-name="${item.name}" ${item.isChecked ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
               <div>
@@ -449,27 +487,61 @@
         otherItems.forEach(item => { othersContainer.innerHTML += createRowHtml(item); });
       }
 
-      // 確定スケジュール一覧
+      // ① 【修正】「本日の確定運行」を車両ごとで見れるように再構築
       const checkedRuns = [...mainItems, ...otherItems].filter(i => i.isChecked);
       if (checkedRuns.length === 0) {
         finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">運行予定がありません。</p>';
       } else {
-        checkedRuns.forEach(s => {
-          const v = db.vehicles.find(vec => vec.id == s.vehicleId);
-          finalListContainer.innerHTML += `
-            <div class="border-b last:border-0 pb-3 last:pb-0 flex flex-wrap justify-between items-center text-sm gap-2">
-              <div>
-                <span class="text-xs font-bold px-2 py-0.5 rounded mr-2 bg-blue-100 text-blue-800">${s.time || '時間指定なし'}</span>
-                <strong class="text-gray-900">${s.name}</strong>
-                <span class="block text-xs text-gray-500 mt-0.5">🚚 ${v ? v.name : '車両未定'}</span>
-              </div>
-              <button onclick="openDeliveryModal('${s.name}')" class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700 transition">
-                実績入力
-              </button>
-            </div>`;
+        // 車両ごとにグループ分けする
+        let vehicleGroup = {};
+        
+        // 登録されている全車両の枠をはじめに用意（未定枠も作成）
+        db.vehicles.forEach(v => { vehicleGroup[v.id] = { name: v.name, runs: [] }; });
+        vehicleGroup['unassigned'] = { name: '❌ 車両未定', runs: [] };
+
+        // 確定している運行をそれぞれの車両へ振り分け
+        checkedRuns.forEach(run => {
+          if (run.vehicleId && vehicleGroup[run.vehicleId]) {
+            vehicleGroup[run.vehicleId].runs.push(run);
+          } else {
+            vehicleGroup['unassigned'].runs.push(run);
+          }
         });
+
+        // 各車両の時間順にソートしてHTMLを出力
+        for (const vId in vehicleGroup) {
+          const group = vehicleGroup[vId];
+          if (group.runs.length === 0) continue; // 運行がない車両は非表示
+
+          group.runs.sort((a, b) => (a.time > b.time ? 1 : -1));
+
+          let groupHtml = `
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2">
+              <div class="text-xs font-bold text-gray-500 border-b pb-1 flex justify-between">
+                <span>🚛 ${group.name}</span>
+                <span>${group.runs.length}件の運行</span>
+              </div>
+              <div class="divide-y divide-gray-50">`;
+
+          group.runs.forEach(s => {
+            groupHtml += `
+              <div class="py-2 flex justify-between items-center text-sm gap-2 first:pt-0 last:pb-0">
+                <div>
+                  <span class="text-[11px] font-bold px-1.5 py-0.5 rounded mr-2 bg-blue-100 text-blue-800">${s.time || '時間未定'}</span>
+                  <strong class="text-gray-900">${s.name}</strong>
+                </div>
+                <button onclick="openDeliveryModal('${s.name}')" class="bg-blue-600 text-white text-[11px] px-2.5 py-1 rounded-lg font-medium hover:bg-blue-700 transition shrink-0">
+                  実績入力
+                </button>
+              </div>`;
+          });
+
+          groupHtml += `</div></div>`;
+          finalListContainer.innerHTML += groupHtml;
+        }
       }
 
+      // アラートの表示
       const alerts = document.getElementById('today-alerts');
       alerts.innerHTML = '';
       let alertCount = 0;
@@ -505,6 +577,7 @@
           days: isChecked ? 'GO' : 'SKIP', note: todayStr
         };
 
+        // GASへ送信（すでに同じidがあれば上書き、または第二段階のダブり防止対策）
         fetch(GAS_URL, {
           method: 'POST',
           mode: 'no-cors',
@@ -577,7 +650,7 @@
         body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData })
       }).then(() => {
         closeDeliveryModal();
-        alert(`${selectedDeliveryCompanyName} の配送実績（納品/引取）を登録しました！`);
+        alert(`${selectedDeliveryCompanyName} の配送実績を上書き登録しました！`);
         setTimeout(loadAllData, 500);
       });
     }
@@ -664,8 +737,11 @@
       let displayRoutes = [];
 
       if (daySavedRecords.length > 0) {
+        // ② 【修正】カレンダー詳細のダブり表示を防止するための重複カット処理
+        let seenCompanies = new Set();
         daySavedRecords.forEach(r => {
-          if (r.days === 'GO') {
+          if (r.days === 'GO' && !seenCompanies.has(r.name)) {
+            seenCompanies.add(r.name);
             displayRoutes.push({ name: r.name, time: r.time || '時間未定', vehicleId: r.vehicleId, record: r });
           }
         });
@@ -701,7 +777,7 @@
               <div>
                 <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-2">${r.time}</span>
                 <strong class="text-sm text-gray-900">${r.name}</strong>
-                <span class="block text-xs text-gray-500 mt-0.5">🚚 車両: ${vehicleName}</span>
+                <span class="block text-xs text-gray-500 mt-0.5">🚚 車難: ${vehicleName}</span>
               </div>
               <div>
                 ${hasReport 
@@ -795,105 +871,4 @@
             </div>
             <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
               <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
-              <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:underline">削除</button>
-            </div>
-          </div>`;
-      });
-    }
-    function openVehicleModal(data = null) {
-      document.getElementById('vehicle-modal').classList.remove('hidden');
-      if (data) {
-        document.getElementById('v-id').value = data.id; document.getElementById('v-name').value = data.name;
-        document.getElementById('v-type').value = data.type||''; document.getElementById('v-shaken').value = data.shaken||'';
-        document.getElementById('v-insurance').value = data.insurance||''; document.getElementById('v-note').value = data.note||'';
-      } else {
-        document.getElementById('v-id').value = 'V' + Date.now(); document.getElementById('v-name').value = '';
-        document.getElementById('v-type').value = ''; document.getElementById('v-shaken').value = '';
-        document.getElementById('v-insurance').value = ''; document.getElementById('v-note').value = '';
-      }
-    }
-    function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
-    function submitVehicle() {
-      const id = document.getElementById('v-id').value;
-      const rowData = { id: id, name: document.getElementById('v-name').value, type: document.getElementById('v-type').value, shaken: document.getElementById('v-shaken').value, insurance: document.getElementById('v-insurance').value, note: document.getElementById('v-note').value };
-      upsertRow('vehicles', id, rowData); closeVehicleModal();
-    }
-
-    function updateDropdowns() {
-      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
-    }
-    function initCheckFormSelectors() {
-      const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
-      if(yearSel && monthSel) {
-        yearSel.innerHTML = ''; monthSel.innerHTML = '';
-        for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
-        for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
-      }
-    }
-    function renderCheckForm() {
-      const container = document.getElementById('check-form-container'); if(!container) return;
-      container.innerHTML = '';
-      const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
-      categories.forEach(cat => {
-        let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
-        CHECK_ITEMS.filter(i => i.category === cat).forEach(item => {
-          catHtml += `
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-gray-50 text-sm">
-              <span class="text-gray-700">${item.label}</span>
-              <div class="flex gap-1" id="btn-group-${item.key}">
-                <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">○</button>
-                <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">△</button>
-                <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">×</button>
-              </div>
-            </div>`;
-        });
-        container.innerHTML += catHtml + `</div>`;
-      });
-    }
-    let currentMarks = {};
-    function setMark(key, val) {
-      currentMarks[key] = val;
-      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
-      const activeBtn = document.getElementById(`mark-${key}-${val}`);
-      if (activeBtn) {
-        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
-        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
-        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
-      }
-    }
-    function loadCheckData() {
-      const vSel = document.getElementById('check-vehicle'); if(!vSel) return;
-      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
-      CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
-      document.getElementById('check-note').value = ''; if(!vId) return;
-      const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
-      if(records.length > 0) {
-        records.forEach(r => { if(r.itemKey) setMark(r.itemKey, r.value); });
-        document.getElementById('check-note').value = records[0].note || '';
-      }
-    }
-    function saveCheckData() {
-      const vId = document.getElementById('check-vehicle').value; if(!vId) { alert('車両を選択してください'); return; }
-      updateStatus('loading', '点検データを保存中...');
-      sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
-    }
-
-    function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
-    function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
-    function sendPostRequest(payload) {
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      .then(() => { setTimeout(loadAllData, 500); })
-      .catch(err => { updateStatus('error', '通信エラー: ' + err.message); });
-    }
-    function updateStatus(type, text) {
-      const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
-      if(txt) txt.innerText = text;
-      if (bar && dot) {
-        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
-        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
-        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
-      }
-    }
-  </script>
-</body>
-</html>
+              <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:
