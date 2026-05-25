@@ -221,7 +221,7 @@
     let db = { vehicles: [], routes: [], checks: [] }; 
     let holidays = {}; 
     let currentYear, currentMonth;
-    let selectedDeliveryCompanyName = ""; // 実績入力用
+    let selectedDeliveryCompanyName = "";
     const todayObj = new Date();
     const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
     const todayDay = ['日','月','火','水','木','金','土'][todayObj.getDay()];
@@ -321,7 +321,6 @@
       }
     }
 
-    // --- ① 今日の配車作成・調整 ---
     function renderTodayDispatchBuilder() {
       const mainContainer = document.getElementById('today-dispatch-selector');
       const othersContainer = document.getElementById('today-dispatch-selector-others-list');
@@ -377,12 +376,7 @@
         }
 
         const itemObj = {
-          id: finalId,
-          name: name,
-          time: activeTime,
-          vehicleId: activeVehicleId,
-          isChecked: isChecked,
-          label: typeLabel
+          id: finalId, name: name, time: activeTime, vehicleId: activeVehicleId, isChecked: isChecked, label: typeLabel
         };
 
         if (isTodayPattern) mainItems.push(itemObj);
@@ -426,7 +420,7 @@
         otherItems.forEach(item => { othersContainer.innerHTML += createRowHtml(item); });
       }
 
-      // 下部の確定スケジュール一覧（ここに配送完了報告ボタンを配置）
+      // 元通りの配置スケジュール一覧
       const checkedRuns = [...mainItems, ...otherItems].filter(i => i.isChecked);
       if (checkedRuns.length === 0) {
         finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">運行予定がありません。</p>';
@@ -440,14 +434,13 @@
                 <strong class="text-gray-900">${s.name}</strong>
                 <span class="block text-xs text-gray-500 mt-0.5">🚚 ${v ? v.name : '車両未定'}</span>
               </div>
-              <button onclick="openDeliveryModal('${s.name}')" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow-sm hover:opacity-90 transition">
-                📸 実績入力 (納品/引取)
+              <button onclick="openDeliveryModal('${s.name}')" class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700 transition">
+                実績入力
               </button>
             </div>`;
         });
       }
 
-      // 車両アラート
       const alerts = document.getElementById('today-alerts');
       alerts.innerHTML = '';
       let alertCount = 0;
@@ -499,12 +492,10 @@
       });
     }
 
-    // --- 💡 実績入力モーダル（納品・引取）制御ロジック ---
     function openDeliveryModal(companyName) {
       selectedDeliveryCompanyName = companyName;
       document.getElementById('delivery-modal-title').innerText = `📦 ${companyName} 配送完了報告`;
       
-      // フォーム初期化
       document.getElementById('nouhin-photo').value = "";
       document.getElementById('nouhin-memo').value = "";
       document.getElementById('nouhin-file-status').innerText = "未選択";
@@ -532,13 +523,9 @@
       }
     }
 
-    // 報告ボタンを押したときの処理
     function submitDeliveryReport() {
       const nouhinMemo = document.getElementById('nouhin-memo').value;
       const hikitoriMemo = document.getElementById('hikitori-memo').value;
-      const nouhinFile = document.getElementById('nouhin-photo').files[0];
-      const hikitoriFile = document.getElementById('hikitori-photo').files[0];
-
       updateStatus('loading', '配送実績を送信中...');
       
       setTimeout(() => {
@@ -548,7 +535,6 @@
       }, 1200);
     }
 
-    // --- ② カレンダー実績表示 ---
     function changeMonth(diff) {
       currentMonth += diff;
       if (currentMonth > 12) { currentYear++; currentMonth = 1; }
@@ -631,7 +617,6 @@
       }
     }
 
-    // --- ③ 取引先マスタ管理 ---
     function renderCompanies() {
       const list = document.getElementById('companies-list');
       list.innerHTML = '';
@@ -688,7 +673,6 @@
       upsertRow('routes', id, rowData); closeCompanyModal();
     }
 
-    // --- ④ 車両管理 ---
     function renderVehicles() {
       const list = document.getElementById('vehicles-list'); list.innerHTML = '';
       db.vehicles.forEach(v => {
@@ -726,7 +710,6 @@
       upsertRow('vehicles', id, rowData); closeVehicleModal();
     }
 
-    // --- ⑤ 点検表ロジック ---
     function updateDropdowns() {
       const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
     }
@@ -786,7 +769,6 @@
       sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
     }
 
-    // --- 🌐 通信共通 ---
     function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
     function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
     function sendPostRequest(payload) {
