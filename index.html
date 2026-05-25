@@ -75,7 +75,7 @@
           <button onclick="changeMonth(1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">次月 ▶</button>
         </div>
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-sm text-gray-500 mb-2">
-          <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
+          <div class="text-red-500">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-500">土</div>
         </div>
         <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
       </div>
@@ -171,6 +171,7 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
     
     let db = { vehicles: [], routes: [], checks: [] }; 
+    let holidays = {}; 
     let currentYear, currentMonth;
     const todayObj = new Date();
     const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
@@ -211,8 +212,16 @@
       document.getElementById('today-date-display').innerText = `${currentYear}年${currentMonth}月${todayObj.getDate()}日（${todayDay}）`;
       initCheckFormSelectors();
       renderCheckForm();
-      loadAllData();
+      fetchHolidays();
     };
+
+    function fetchHolidays() {
+      fetch('https://holidays-jp.github.io/api/v1/date.json')
+        .then(res => res.json())
+        .then(data => { holidays = data; })
+        .catch(() => { console.log('祝日データ取得失敗'); })
+        .finally(() => { loadAllData(); });
+    }
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -263,7 +272,7 @@
       }
     }
 
-    // --- ① 今日の配車作成・調整（元のID運用に完全準拠版） ---
+    // --- ① 今日の配車作成・調整（画像データ完全対応版） ---
     function renderTodayDispatchBuilder() {
       const mainContainer = document.getElementById('today-dispatch-selector');
       const othersContainer = document.getElementById('today-dispatch-selector-others-list');
@@ -273,68 +282,56 @@
       othersContainer.innerHTML = '';
       finalListContainer.innerHTML = '';
 
-      // 💡 重複を除いた「取引先リスト」をマスタ（routesシート全体）から抽出
+      // ① 全体の取引先会社名を「名前（name）」基準でユニークに取得
       const uniqueCompanyNames = [...new Set(db.routes.map(r => r.name))].filter(Boolean);
       
-      // 今日の日付レコードを取得
+      // ② 今日の日付表記パターン（ハイフンとスラッシュ両方対応）
+      const todaySlash = todayStr.replace(/-/g, '/');
       const todayRecords = db.routes.filter(r => {
         if (!r.note) return false;
-        const noteStr = String(r.note).replace(/\//g, '-');
-        return noteStr.includes(todayStr);
+        const noteStr = String(r.note).trim();
+        return noteStr.includes(todayStr) || noteStr.includes(todaySlash);
       });
-
-      // 今日確定した当日運行分（D_始まりで本日の保存データ）
-      const todaySavedDispatches = todayRecords.filter(r => r.id && String(r.id).startsWith('D_'));
-      // スプレッドにあらかじめ手入力された事前予定（daysがGOで、本日日付が入っているもの）
-      const advanceDispatches = todayRecords.filter(r => (!r.id || !String(r.id).startsWith('D_')) && r.days === 'GO');
 
       let mainItems = [];
       let otherItems = [];
 
       uniqueCompanyNames.forEach(name => {
-        // マスタ側の基本パターン行を探す
-        const base = db.routes.find(r => r.name === name && (!r.note || !String(r.note).includes('-')));
-        // 今日保存されたデータ
-        const saved = todaySavedDispatches.find(s => s.name === name);
-        // スプレッド直入力の事前予定
-        const advance = advanceDispatches.find(a => a.name === name);
+        // 💡 修正ポイント：IDに関係なく「マスタ行」と「当日行」をnameでマッチング
+        const base = db.routes.find(r => r.name === name && (!r.note || (!String(r.note).includes('-') && !String(r.note).includes('/'))));
+        const todayRow = todayRecords.find(s => s.name === name);
 
         let isChecked = false;
-        let activeTime = base ? (base.time || '') : '';
-        let activeVehicleId = base ? (base.vehicleId || '') : '';
+        let activeTime = todayRow ? (todayRow.time || '') : (base ? (base.time || '') : '');
+        let activeVehicleId = todayRow ? (todayRow.vehicleId || '') : (base ? (base.vehicleId || '') : '');
         let typeLabel = base ? `パターン: ${base.days || '未設定'}` : '直入力データ';
         let isTodayPattern = false;
-        let finalId = base ? base.id : ('D_' + todayStr + '_' + name.replace(/\s+/g, ''));
+        
+        // 固有の一時的なHTML上のIDを生成
+        let finalId = 'ROW_' + name.replace(/\s+/g, '');
 
-        if (saved) {
-          isTodayPattern = true; // 今日すでに確定データがあればメイン表示
-          isChecked = saved.days === 'GO';
-          activeTime = saved.time || activeTime;
-          activeVehicleId = saved.vehicleId || activeVehicleId;
-          finalId = saved.id;
-        } else if (advance) {
-          isTodayPattern = true; // スプレッド事前手入力があればメイン
-          isChecked = true;
-          activeTime = advance.time || activeTime;
-          activeVehicleId = advance.vehicleId || activeVehicleId;
-          typeLabel = `📅 スプレッド事前手入力あり`;
-        } else if (base) {
-          // マスタデータに基づく判定
+        // 判定：今日データ（スプレッド直入力含む）があれば最優先
+        if (todayRow) {
+          isTodayPattern = true;
+          isChecked = (todayRow.days === 'GO');
+          typeLabel = `📅 スプレッド日付入力あり (${todayRow.days})`;
+        } 
+        // 今日データがない場合はマスタのパターン判定
+        else if (base) {
           if (base.days === '毎営業日') {
             isTodayPattern = true;
             isChecked = true;
-          } else if (base.days && String(base.days).split(',').includes(todayDay)) {
+          } else if (base.days && String(base.days).split(',').map(d => d.trim()).includes(todayDay)) {
             isTodayPattern = true;
             isChecked = true;
           } else if (!base.days || String(base.days).includes('不定期')) {
-            isTodayPattern = true; // 不定期は毎日メイン側に表示（チェックはOFF）
+            isTodayPattern = true; // 不定期はチェックOFFで常時表示
             isChecked = false;
           } else {
-            isTodayPattern = false; // 今日とは異なるパターンの定期会社 ➡️ 臨時エリアへ
+            isTodayPattern = false; // 他の曜日の定期ルート
             isChecked = false;
           }
         } else {
-          // マスタになく、今日の日付だけで入ってきたデータ
           isTodayPattern = true;
         }
 
@@ -347,11 +344,8 @@
           label: typeLabel
         };
 
-        if (isTodayPattern) {
-          mainItems.push(itemObj);
-        } else {
-          otherItems.push(itemObj);
-        }
+        if (isTodayPattern) mainItems.push(itemObj);
+        else otherItems.push(itemObj);
       });
 
       const makeVehicleOptions = (selectedId) => {
@@ -379,32 +373,24 @@
           </div>`;
       };
 
-      // ① メイン一覧の描画
       if (mainItems.length === 0) {
-        mainContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">本日の定期・不定期予定はありません。</p>';
+        mainContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">本日の運行予定はありません。</p>';
       } else {
         mainItems.forEach(item => { mainContainer.innerHTML += createRowHtml(item); });
       }
 
-      // ② 臨時一覧の描画
       if (otherItems.length === 0) {
         othersContainer.innerHTML = '<p class="text-xs text-gray-400 py-1">他の曜日のマスタデータはありません。</p>';
       } else {
         otherItems.forEach(item => { othersContainer.innerHTML += createRowHtml(item); });
       }
 
-      // 確定スケジュールの表示
-      let activeRuns = [];
-      if (todaySavedDispatches.length > 0) {
-        activeRuns = todaySavedDispatches.filter(s => s.days === 'GO');
+      // 下部の確定スケジュール一覧
+      const checkedRuns = [...mainItems, ...otherItems].filter(i => i.isChecked);
+      if (checkedRuns.length === 0) {
+        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">運行予定がありません。</p>';
       } else {
-        activeRuns = mainItems.filter(i => i.isChecked);
-      }
-
-      if (activeRuns.length === 0) {
-        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">本日の運行はまだ確定していないか、予定がありません。</p>';
-      } else {
-        activeRuns.forEach(s => {
+        checkedRuns.forEach(s => {
           const v = db.vehicles.find(vec => vec.id == s.vehicleId);
           finalListContainer.innerHTML += `
             <div class="border-b last:border-0 pb-2 last:pb-0 flex justify-between items-center text-sm">
@@ -446,7 +432,7 @@
         const vecVal = document.getElementById(`vec-${idAttr}`).value;
         const name = chk.getAttribute('data-name');
         
-        // 💡 保存時のIDは元の仕組みどおり D_今日の日付_会社名 に統一
+        // 保存IDは元の規則どおり D_始まり
         const dispatchId = 'D_' + todayStr + '_' + name.replace(/\s+/g, '');
 
         const rowData = {
@@ -456,7 +442,7 @@
           to: '',
           time: timeVal,
           vehicleId: vecVal,
-          days: isChecked ? 'GO' : 'SKIP',
+          days: isChecked ? 'GO' : 'SKIP', 
           note: todayStr
         };
 
@@ -476,7 +462,7 @@
       });
     }
 
-    // --- ② カレンダー実績表示 ---
+    // --- ② カレンダー実績表示（土日祝は完全枠なし休み表示化） ---
     function changeMonth(diff) {
       currentMonth += diff;
       if (currentMonth > 12) { currentYear++; currentMonth = 1; }
@@ -495,8 +481,32 @@
       for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="h-14 bg-gray-50 border border-gray-100 rounded"></div>';
 
       for (let date = 1; date <= lastDate; date++) {
+        const dObj = new Date(currentYear, currentMonth - 1, date);
+        const dayIdx = dObj.getDay();
         const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-        const hasHistory = db.routes.some(r => r.note && String(r.note).replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
+        const formattedDateSlash = `${currentYear}/${String(currentMonth).padStart(2,'0')}/${String(date).padStart(2,'0')}`;
+        
+        // 土日、または祝日判定
+        const isHolidayOrWeekend = (dayIdx === 0 || dayIdx === 6 || holidays[formattedDate] !== undefined);
+
+        // 💡 修正：土日祝（休み）の場合は中身を非表示（空のグレー枠）にする
+        if (isHolidayOrWeekend) {
+          let labelColor = "text-red-400";
+          if (dayIdx === 6 && holidays[formattedDate] === undefined) labelColor = "text-blue-400";
+          grid.innerHTML += `
+            <div class="h-14 bg-gray-100/70 border border-gray-200 rounded p-1 text-left select-none">
+              <span class="text-xs font-bold ${labelColor}">${date}</span>
+              <span class="block text-[9px] text-gray-400 text-center mt-1">休み</span>
+            </div>`;
+          continue;
+        }
+
+        // 平日の実績ドット判定
+        const hasHistory = db.routes.some(r => {
+          if (!r.note || r.days !== 'GO') return false;
+          const noteStr = String(r.note).trim();
+          return noteStr.includes(formattedDate) || noteStr.includes(formattedDateSlash);
+        });
         const hasShaken = db.vehicles.some(v => v.shaken === formattedDate);
 
         let indicators = '';
@@ -504,7 +514,7 @@
         if (hasShaken) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>';
 
         grid.innerHTML += `
-          <button onclick="showCalendarDetail(${date})" class="h-14 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-gray-50">
+          <button onclick="showCalendarDetail(${date})" class="h-14 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-gray-100">
             <span class="text-xs font-bold text-gray-700">${date}</span>
             <div class="flex gap-0.5 justify-end">${indicators}</div>
           </button>`;
@@ -518,14 +528,20 @@
       detail.classList.remove('hidden');
       
       const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+      const formattedDateSlash = `${currentYear}/${String(currentMonth).padStart(2,'0')}/${String(date).padStart(2,'0')}`;
       dateTitle.innerText = `${formattedDate} の運行リスト`;
       list.innerHTML = '';
 
-      const dayDispatches = db.routes.filter(r => r.note && String(r.note).replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
+      const dayDispatches = db.routes.filter(r => {
+        if (!r.note || r.days !== 'GO') return false;
+        const noteStr = String(r.note).trim();
+        return noteStr.includes(formattedDate) || noteStr.includes(formattedDateSlash);
+      });
+
       if (dayDispatches.length > 0) {
         dayDispatches.forEach(r => {
           const v = db.vehicles.find(vec => vec.id == r.vehicleId);
-          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】 ${String(r.id).startsWith('D_') ? '' : '(事前予定)'}</div>`;
+          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】</div>`;
         });
       } else {
         list.innerHTML = '<p class="text-xs text-gray-400">この日の稼働または予定はありません。</p>';
@@ -536,9 +552,7 @@
     function renderCompanies() {
       const list = document.getElementById('companies-list');
       list.innerHTML = '';
-      
-      // マスタとして扱うのは、日付の入っていない行
-      const companies = db.routes.filter(r => !r.note || !String(r.note).includes('-'));
+      const companies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
       
       companies.forEach(c => {
         list.innerHTML += `
@@ -570,7 +584,6 @@
         document.getElementById('c-note').value = data.note || '';
       } else {
         document.getElementById('company-modal-title').innerText = '取引先の新規登録';
-        // 💡 マスタのIDも元の規則（M_始まり、またはそのままD_）で競合しないよう日付を含まないユニークIDにします
         document.getElementById('c-id').value = 'M_' + Date.now(); 
         document.getElementById('c-name').value = '';
         document.getElementById('c-time').value = ''; 
@@ -632,17 +645,19 @@
 
     // --- ⑤ 点検表ロジック ---
     function updateDropdowns() {
-      const cSel = document.getElementById('check-vehicle'); cSel.innerHTML = '';
-      db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
+      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
     }
     function initCheckFormSelectors() {
       const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
-      yearSel.innerHTML = ''; monthSel.innerHTML = '';
-      for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
-      for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
+      if(yearSel && monthSel) {
+        yearSel.innerHTML = ''; monthSel.innerHTML = '';
+        for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
+        for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
+      }
     }
     function renderCheckForm() {
-      const container = document.getElementById('check-form-container'); container.innerHTML = '';
+      const container = document.getElementById('check-form-container'); if(!container) return;
+      container.innerHTML = '';
       const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
       categories.forEach(cat => {
         let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
@@ -663,16 +678,17 @@
     let currentMarks = {};
     function setMark(key, val) {
       currentMarks[key] = val;
-      ['○', '△', '×'].forEach(v => { document.getElementById(`mark-${key}-${v}`).className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
+      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
       const activeBtn = document.getElementById(`mark-${key}-${val}`);
-      if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
-      if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
-      if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
+      if (activeBtn) {
+        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
+        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
+        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
+      }
     }
     function loadCheckData() {
-      const vId = document.getElementById('check-vehicle').value;
-      const year = document.getElementById('check-year').value;
-      const month = document.getElementById('check-month').value;
+      const vSel = document.getElementById('check-vehicle'); if(!vSel) return;
+      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
       CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
       document.getElementById('check-note').value = ''; if(!vId) return;
       const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
@@ -697,10 +713,12 @@
     }
     function updateStatus(type, text) {
       const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
-      txt.innerText = text;
-      if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
-      else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
-      else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
+      if(txt) txt.innerText = text;
+      if (bar && dot) {
+        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
+        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
+        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
+      }
     }
   </script>
 </body>
