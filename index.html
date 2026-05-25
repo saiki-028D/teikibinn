@@ -53,7 +53,7 @@
           <span id="today-date-display" class="text-sm font-medium text-gray-500"></span>
         </div>
         
-        <p class="text-xs text-gray-500">※基本パターン、またはスプレッドシートに事前入力された本日の予定が自動チェックされています。</p>
+        <p class="text-xs text-gray-500">※チェックが入っていないルート（未配車）が上に、確定ルートが下に自動整列します。</p>
         
         <div class="bg-blue-50/50 p-3 rounded-xl border border-blue-100 space-y-2">
           <span class="text-xs font-bold text-blue-900 block">➕ 本日の臨時便・スポットを今すぐ追加</span>
@@ -98,7 +98,7 @@
       
       <div id="calendar-detail" class="bg-white p-4 rounded-xl shadow-sm hidden border border-blue-100">
         <h3 id="calendar-detail-date" class="font-bold text-blue-600 mb-2 text-sm border-b pb-1"></h3>
-        <p class="text-[11px] text-gray-400 mb-2">※配送先をタップすると、当日の写真やメモ（記録）を確認できます。</p>
+        <p class="text-[11px] text-gray-400 mb-2">※配送先をタップすると、当日の写真やメモ（実績記録）を確認できます。</p>
         <div id="calendar-detail-list" class="space-y-2"></div>
       </div>
     </section>
@@ -108,7 +108,23 @@
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">取引先（会社）の管理</h2>
         <button onclick="openCompanyModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 取引先を追加</button>
       </div>
-      <div id="companies-list" class="grid gap-4 sm:grid-cols-2"></div>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="space-y-3">
+          <h3 class="text-sm font-bold text-blue-900 bg-blue-50 p-2 rounded-lg border border-blue-100 flex justify-between">
+            <span>📅 定期便（毎日・曜日固定）</span>
+            <span id="count-regular" class="text-xs text-gray-500">0件</span>
+          </h3>
+          <div id="companies-list-regular" class="space-y-3"></div>
+        </div>
+        <div class="space-y-3">
+          <h3 class="text-sm font-bold text-purple-900 bg-purple-50 p-2 rounded-lg border border-purple-100 flex justify-between">
+            <span>📦 不定期・スポット便</span>
+            <span id="count-irregular" class="text-xs text-gray-500">0件</span>
+          </h3>
+          <div id="companies-list-irregular" class="space-y-3"></div>
+        </div>
+      </div>
     </section>
 
     <section id="view-vehicles" class="tab-content hidden space-y-4">
@@ -327,12 +343,14 @@
       }
     }
 
+    // 🚀 スポット追加時に画面を崩さず、即座に下にフォーム展開
     function addQuickSpot() {
       const input = document.getElementById('quick-spot-name'); const spotName = input.value.trim();
       if (!spotName) return;
       updateStatus('loading', 'スポット追加中...');
       const dispatchId = 'D_' + todayStr + '_' + spotName.replace(/\s+/g, '');
       const rowData = { id: dispatchId, name: spotName, from: '', to: '', time: '', vehicleId: '', days: 'GO', note: todayStr };
+      
       fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData }) })
       .then(() => { input.value = ''; setTimeout(loadAllData, 500); });
     }
@@ -345,14 +363,20 @@
       if ([...filterSel.options].some(o => o.value === currentSelected)) filterSel.value = currentSelected;
     }
 
+    // 🎯 車両フィルタと確定運行リストの完全個別連動
     function filterFinalList() {
       const selectedVehicleId = document.getElementById('final-vehicle-filter').value;
       document.querySelectorAll('.final-vehicle-block').forEach(block => {
         const bId = block.getAttribute('data-vehicle-id');
-        if (selectedVehicleId === 'ALL' || bId === selectedVehicleId) block.classList.remove('hidden'); else block.classList.add('hidden');
+        if (selectedVehicleId === 'ALL' || bId === selectedVehicleId) {
+          block.style.display = 'block';
+        } else {
+          block.style.display = 'none';
+        }
       });
     }
 
+    // 🔄 運行計画調整：未配車（未チェック）を上、確定済みを下に自動整列
     function renderTodayDispatchBuilder() {
       const mainContainer = document.getElementById('today-dispatch-selector');
       const othersContainer = document.getElementById('today-dispatch-selector-others-list');
@@ -378,352 +402,4 @@
           isTodayPattern = true; isChecked = (todayRow.days === 'GO'); typeLabel = `📅 当日確定枠`;
         } else if (base) {
           if (base.days === '毎営業日' || (base.days && String(base.days).split(',').map(d => d.trim()).includes(todayDay))) {
-            isTodayPattern = true; isChecked = true;
-          } else if (!base.days || String(base.days).includes('不定期')) {
-            isTodayPattern = true; isChecked = false;
-          } else {
-            isTodayPattern = false; isChecked = false;
-          }
-        } else { isTodayPattern = true; }
-
-        const itemObj = { id: 'ROW_' + name.replace(/\s+/g, ''), name: name, time: activeTime, vehicleId: activeVehicleId, isChecked: isChecked, label: typeLabel };
-        if (isTodayPattern) mainItems.push(itemObj); else otherItems.push(itemObj);
-      });
-
-      const makeVehicleOptions = (selectedId) => {
-        let options = '<option value="">-- 車両選択 --</option>';
-        db.vehicles.forEach(v => { options += `<option value="${v.id}" ${v.id == selectedId ? 'selected' : ''}>${v.name}</option>`; });
-        return options;
-      };
-
-      const createRowHtml = (item) => `
-        <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 ${item.isChecked ? 'bg-blue-50/20 border-blue-100' : 'bg-gray-50/50'}">
-          <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[180px]">
-            <input type="checkbox" id="chk-${item.id}" data-name="${item.name}" ${item.isChecked ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
-            <div><span>${item.name}</span><span class="block text-[10px] text-gray-400 font-normal">${item.label}</span></div>
-          </label>
-          <div class="flex items-center gap-2 flex-1 justify-end min-w-[240px]">
-            <input type="time" id="time-${item.id}" value="${item.time}" class="border p-1.5 rounded-lg text-xs bg-white w-24">
-            <select id="vec-${item.id}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[140px]">${makeVehicleOptions(item.vehicleId)}</select>
-          </div>
-        </div>`;
-
-      mainItems.forEach(item => { mainContainer.innerHTML += createRowHtml(item); });
-      otherItems.forEach(item => { othersContainer.innerHTML += createRowHtml(item); });
-
-      const checkedRuns = [...mainItems, ...otherItems].filter(i => i.isChecked);
-      if (checkedRuns.length === 0) {
-        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">予定されている運行はありません。</p>';
-      } else {
-        let vehicleGroup = {};
-        db.vehicles.forEach(v => { vehicleGroup[v.id] = { name: v.name, runs: [] }; });
-        vehicleGroup['unassigned'] = { name: '❌ 車両未定', runs: [] };
-
-        checkedRuns.forEach(run => {
-          if (run.vehicleId && vehicleGroup[run.vehicleId]) vehicleGroup[run.vehicleId].runs.push(run);
-          else vehicleGroup['unassigned'].runs.push(run);
-        });
-
-        for (const vId in vehicleGroup) {
-          const group = vehicleGroup[vId]; if (group.runs.length === 0) continue;
-          group.runs.sort((a, b) => (a.time > b.time ? 1 : -1));
-
-          let groupHtml = `<div class="final-vehicle-block bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-2" data-vehicle-id="${vId}">
-            <div class="text-xs font-bold text-gray-500 border-b pb-1 flex justify-between"><span>🚚 ${group.name}</span><span>${group.runs.length}件</span></div><div class="divide-y divide-gray-50">`;
-          
-          group.runs.forEach(s => {
-            groupHtml += `<div class="py-2 flex justify-between items-center text-sm gap-2">
-              <div><span class="text-[11px] font-bold px-1.5 py-0.5 rounded mr-2 bg-blue-100 text-blue-800">${s.time || '未定'}</span><strong class="text-gray-900">${s.name}</strong></div>
-              <button onclick="openDeliveryModal('${s.name}')" class="bg-blue-600 text-white text-[11px] px-2.5 py-1 rounded-lg font-medium hover:bg-blue-700">実績入力</button>
-            </div>`;
-          });
-          groupHtml += `</div></div>`; finalListContainer.innerHTML += groupHtml;
-        }
-        filterFinalList();
-      }
-
-      const alerts = document.getElementById('today-alerts'); alerts.innerHTML = '';
-      db.vehicles.forEach(v => {
-        if (v.shaken) {
-          const days = Math.ceil((new Date(v.shaken).getTime() - todayObj.getTime()) / (1000*60*60*24));
-          if (days <= 30) alerts.innerHTML += `<div class="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100">⚠ <strong>${v.name}</strong> 車検残 ${days < 0 ? '切れ' : days + '日'} (${v.shaken})</div>`;
-        }
-      });
-      if (!alerts.innerHTML) alerts.innerHTML = '<p class="text-xs text-green-600">期限の近い車両はありません。</p>';
-    }
-
-    function saveTodayDispatch() {
-      updateStatus('loading', '本日の運行計画を保存中...');
-      const checkboxes = document.querySelectorAll('input[id^="chk-ROW_"]');
-      let completed = 0; if (checkboxes.length === 0) { loadAllData(); return; }
-
-      checkboxes.forEach((chk) => {
-        const idAttr = chk.id.replace('chk-', ''); const name = chk.getAttribute('data-name');
-        const timeVal = document.getElementById(`time-${idAttr}`).value;
-        const vecVal = document.getElementById(`vec-${idAttr}`).value;
-        const dispatchId = 'D_' + todayStr + '_' + name.replace(/\s+/g, '');
-
-        const rowData = { id: dispatchId, name: name, from: '', to: '', time: timeVal, vehicleId: vecVal, days: chk.checked ? 'GO' : 'SKIP', note: todayStr };
-        fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData }) })
-        .then(() => { completed++; if (completed === checkboxes.length) { setTimeout(loadAllData, 500); } });
-      });
-    }
-
-    function openDeliveryModal(companyName) {
-      selectedDeliveryCompanyName = companyName;
-      document.getElementById('delivery-modal-title').innerText = `📦 ${companyName} 配送完了報告`;
-      
-      document.getElementById('nouhin-photo').value = ""; document.getElementById('nouhin-memo').value = ""; document.getElementById('nouhin-file-status').innerText = "未選択";
-      document.getElementById('hikitori-photo').value = ""; document.getElementById('hikitori-memo').value = ""; document.getElementById('hikitori-file-status').innerText = "未選択";
-      
-      const dispatchId = 'D_' + todayStr + '_' + selectedDeliveryCompanyName.replace(/\s+/g, '');
-      const existRow = db.routes.find(r => r.id === dispatchId);
-      if (existRow && existRow.note && String(existRow.note).includes('__N:')) {
-        const noteStr = String(existRow.note);
-        const nMatch = noteStr.match(/__N:([\s\S]*?)(__H:|$)/); const hMatch = noteStr.match(/__H:([\s\S]*)$/);
-        if (nMatch) document.getElementById('nouhin-memo').value = nMatch[1].trim();
-        if (hMatch) document.getElementById('hikitori-memo').value = hMatch[1].trim();
-        if (existRow.from === 'MEMO_ATTACHED') document.getElementById('nouhin-file-status').innerText = "登録済み";
-        if (existRow.to === 'MEMO_ATTACHED') document.getElementById('hikitori-file-status').innerText = "登録済み";
-      }
-
-      document.getElementById('delivery-modal').classList.remove('hidden');
-    }
-    
-    function closeDeliveryModal() { document.getElementById('delivery-modal').classList.add('hidden'); }
-    
-    function updateFileLabel(type) {
-      const fi = document.getElementById(`${type}-photo`); const st = document.getElementById(`${type}-file-status`);
-      st.innerText = fi.files.length > 0 ? `選択済: ${fi.files[0].name}` : "未選択";
-    }
-
-    function submitDeliveryReport() {
-      updateStatus('loading', '配送実績を送信中...');
-      const dispatchId = 'D_' + todayStr + '_' + selectedDeliveryCompanyName.replace(/\s+/g, '');
-      const base = db.routes.find(r => r.name === selectedDeliveryCompanyName && (!r.note || (!String(r.note).includes('-') && !String(r.note).includes('/'))));
-      const existRow = db.routes.find(r => r.id === dispatchId);
-
-      const hasNouhinPhoto = document.getElementById('nouhin-photo').files.length > 0 || (existRow && existRow.from === 'MEMO_ATTACHED');
-      const hasHikitoriPhoto = document.getElementById('hikitori-photo').files.length > 0 || (existRow && existRow.to === 'MEMO_ATTACHED');
-
-      const rowData = {
-        id: dispatchId, name: selectedDeliveryCompanyName,
-        from: hasNouhinPhoto ? 'MEMO_ATTACHED' : '',
-        to: hasHikitoriPhoto ? 'MEMO_ATTACHED' : '',
-        time: existRow ? existRow.time : (base ? base.time : ''),
-        vehicleId: existRow ? existRow.vehicleId : (base ? base.vehicleId : ''), days: 'GO',
-        note: `${todayStr}__N:${document.getElementById('nouhin-memo').value}__H:${document.getElementById('hikitori-memo').value}`
-      };
-
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData }) })
-      .then(() => { closeDeliveryModal(); setTimeout(loadAllData, 500); });
-    }
-
-    function changeMonth(diff) {
-      currentMonth += diff; if (currentMonth > 12) { currentYear++; currentMonth = 1; } if (currentMonth < 1) { currentYear--; currentMonth = 12; }
-      renderCalendar();
-    }
-
-    function renderCalendar() {
-      document.getElementById('calendar-month-title').innerText = `${currentYear}年 ${currentMonth}月`;
-      const grid = document.getElementById('calendar-grid'); grid.innerHTML = '';
-      const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
-      const lastDate = new Date(currentYear, currentMonth, 0).getDate();
-
-      for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="h-14 bg-gray-50 border border-gray-100 rounded"></div>';
-
-      const masterCompanies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
-
-      for (let date = 1; date <= lastDate; date++) {
-        const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-        const dayIdx = new Date(currentYear, currentMonth - 1, date).getDay();
-        const weekStr = ['日','月','火','水','木','金','土'][dayIdx];
-        const isHoliday = (holidays[formattedDate] !== undefined);
-
-        const daySavedRecords = db.routes.filter(r => r.note && String(r.note).startsWith(formattedDate));
-        let hasActiveRoute = false;
-        if (daySavedRecords.length > 0) hasActiveRoute = daySavedRecords.some(r => r.days === 'GO');
-        else if (!(dayIdx===0||dayIdx===6||isHoliday)) hasActiveRoute = masterCompanies.some(c => c.days === '毎営業日' || String(c.days).includes(weekStr));
-
-        let indicators = hasActiveRoute ? '<span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>' : '';
-        let bg = "bg-white hover:bg-gray-100"; let col = "text-gray-700";
-        if (isHoliday || dayIdx === 0) { bg = "bg-red-50/40"; col = "text-red-500"; } else if (dayIdx === 6) { bg = "bg-blue-50/40"; col = "text-blue-500"; }
-
-        grid.innerHTML += `<button onclick="showCalendarDetail(${date})" class="h-14 ${bg} border border-gray-100 rounded p-1 flex flex-col justify-between text-left">
-          <span class="text-xs font-bold ${col}">${date}</span><div class="flex gap-0.5 justify-end">${indicators}</div></button>`;
-      }
-    }
-
-    function showCalendarDetail(date) {
-      const detail = document.getElementById('calendar-detail'); const list = document.getElementById('calendar-detail-list');
-      detail.classList.remove('hidden');
-      const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-      document.getElementById('calendar-detail-date').innerText = `📅 ${currentYear}年${currentMonth}月${date}日の運行リスト`;
-      list.innerHTML = '';
-
-      const daySavedRecords = db.routes.filter(r => r.note && String(r.note).startsWith(formattedDate) && r.days === 'GO');
-      
-      if (daySavedRecords.length > 0) {
-        daySavedRecords.forEach(r => {
-          const v = db.vehicles.find(vec => vec.id == r.vehicleId);
-          const hasReport = String(r.note).includes('__N:');
-          const safeRecord = JSON.stringify(r).replace(/"/g, '&quot;');
-          
-          list.innerHTML += `<div onclick="clickRouteDetail('${r.name}', ${hasReport ? safeRecord : 'null'})" class="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center cursor-pointer hover:bg-blue-50/50">
-            <div><span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-2">${r.time || '未定'}</span><strong>${r.name}</strong>
-            <span class="block text-xs text-gray-500 mt-0.5">🚚 車両: ${v ? v.name : '未定'}</span></div>
-            <div>${hasReport ? '<span class="text-[10px] bg-green-600 text-white px-2 py-1 rounded-lg">📄 記録あり</span>' : '<span class="text-[10px] bg-gray-200 text-gray-500 px-2 py-1 rounded-lg">未入力</span>'}</div>
-          </div>`;
-        });
-      } else { list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">運行実績はありません。</p>'; }
-    }
-
-    function clickRouteDetail(companyName, record) {
-      if (!record) { alert(`「${companyName}」の実績詳細はまだ登録されていません。`); return; }
-      const noteStr = String(record.note);
-      const nMatch = noteStr.match(/__N:([\s\S]*?)(__H:|$)/); const hMatch = noteStr.match(/__H:([\s\S]*)$/);
-      document.getElementById('history-modal-title').innerText = `📊 ${companyName} の運行記録`;
-      document.getElementById('history-nouhin-photo').innerText = record.from === 'MEMO_ATTACHED' ? "📸 写真：登録済み" : "📸 写真：なし";
-      document.getElementById('history-nouhin-memo').innerText = nMatch ? nMatch[1].trim() : "なし";
-      document.getElementById('history-hikitori-photo').innerText = record.to === 'MEMO_ATTACHED' ? "📸 写真：登録済み" : "📸 写真：なし";
-      document.getElementById('history-hikitori-memo').innerText = hMatch ? hMatch[1].trim() : "なし";
-      document.getElementById('history-view-modal').classList.remove('hidden');
-    }
-    function closeHistoryViewModal() { document.getElementById('history-view-modal').classList.add('hidden'); }
-
-    function renderCompanies() {
-      const list = document.getElementById('companies-list'); list.innerHTML = '';
-      db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/'))).forEach(c => {
-        list.innerHTML += `<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
-          <div><div class="flex justify-between items-start mb-1"><h4 class="font-bold text-gray-900">${c.name}</h4><span class="text-[10px] bg-gray-100 px-2 py-0.5 rounded text-gray-600">${c.days||'未指定'}</span></div>
-          <p class="text-xs text-gray-400">デフォルト: ${c.time||'指定なし'}</p>${c.note ? `<p class="text-xs bg-yellow-50 text-yellow-700 p-1.5 rounded mt-2 border border-yellow-100">💡 ${c.note}</p>`:''}</div>
-          <div class="flex justify-end gap-3 mt-3 pt-2 border-t text-xs"><button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-blue-600">修正</button>
-          <button onclick="deleteRow('routes', '${c.id}')" class="text-red-500">削除</button></div></div>`;
-      });
-    }
-
-    function openCompanyModal(data = null) {
-      document.getElementById('company-modal').classList.remove('hidden');
-      if (data) {
-        document.getElementById('company-modal-title').innerText = '取引先の修正'; document.getElementById('c-id').value = data.id;
-        document.getElementById('c-name').value = data.name; document.getElementById('c-time').value = data.time || '';
-        document.getElementById('c-pattern').value = data.days || '毎営業日'; document.getElementById('c-note').value = data.note || '';
-      } else {
-        document.getElementById('company-modal-title').innerText = '取引先の新規登録'; document.getElementById('c-id').value = 'M_' + Date.now();
-        document.getElementById('c-name').value = ''; document.getElementById('c-time').value = ''; document.getElementById('c-pattern').value = '毎営業日'; document.getElementById('c-note').value = '';
-      }
-    }
-    function closeCompanyModal() { document.getElementById('company-modal').classList.add('hidden'); }
-    function submitCompany() {
-      const id = document.getElementById('c-id').value; const name = document.getElementById('c-name').value; if (!name) return;
-      const rowData = { id: id, name: name, from: '', to: '', time: document.getElementById('c-time').value, vehicleId: '', days: document.getElementById('c-pattern').value, note: document.getElementById('c-note').value };
-      upsertRow('routes', id, rowData); closeCompanyModal();
-    }
-
-    function renderVehicles() {
-      const list = document.getElementById('vehicles-list'); list.innerHTML = '';
-      db.vehicles.forEach(v => {
-        list.innerHTML += `<div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
-          <div><h4 class="font-bold text-gray-900">${v.name}</h4><p class="text-xs text-gray-400">${v.type||'車種未設定'}</p>
-          <div class="mt-2 space-y-0.5 text-xs text-gray-600"><p>🛠 車検満了: ${v.shaken||'未登録'}</p><p>📄 任意保険: ${v.insurance||'未登録'}</p></div></div>
-          <div class="flex justify-end gap-3 mt-3 pt-2 border-t text-xs"><button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600">修正</button>
-          <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500">削除</button></div></div>`;
-      });
-    }
-
-    function openVehicleModal(data = null) {
-      document.getElementById('vehicle-modal').classList.remove('hidden');
-      if (data) {
-        document.getElementById('v-id').value = data.id; document.getElementById('v-name').value = data.name; document.getElementById('v-type').value = data.type||'';
-        document.getElementById('v-shaken').value = data.shaken||''; document.getElementById('v-insurance').value = data.insurance||''; document.getElementById('v-note').value = data.note||'';
-      } else {
-        document.getElementById('v-id').value = 'V' + Date.now(); document.getElementById('v-name').value = ''; document.getElementById('v-type').value = '';
-        document.getElementById('v-shaken').value = ''; document.getElementById('v-insurance').value = ''; document.getElementById('v-note').value = '';
-      }
-    }
-    function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
-    function submitVehicle() {
-      const id = document.getElementById('v-id').value;
-      const rowData = { id: id, name: document.getElementById('v-name').value, type: document.getElementById('v-type').value, shaken: document.getElementById('v-shaken').value, insurance: document.getElementById('v-insurance').value, note: document.getElementById('v-note').value };
-      upsertRow('vehicles', id, rowData); closeVehicleModal();
-    }
-
-    function updateDropdowns() {
-      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
-    }
-    function initCheckFormSelectors() {
-      const ySel = document.getElementById('check-year'); const mSel = document.getElementById('check-month');
-      if(ySel && mSel) {
-        ySel.innerHTML = ''; mSel.innerHTML = '';
-        for (let y = currentYear - 1; y <= currentYear + 1; y++) ySel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
-        for (let m = 1; m <= 12; m++) mSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
-      }
-    }
-
-    function renderCheckForm() {
-      const container = document.getElementById('check-form-container'); if(!container) return; container.innerHTML = '';
-      const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
-      categories.forEach(cat => {
-        let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
-        CHECK_ITEMS.filter(i => i.category === cat).forEach(item => {
-          catHtml += `<div class="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-gray-50 text-sm">
-            <span class="text-gray-700">${item.label}</span><div class="flex gap-1" id="btn-group-${item.key}">
-              <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">○</button>
-              <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">△</button>
-              <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">×</button>
-            </div></div>`;
-        });
-        container.innerHTML += catHtml + `</div>`;
-      });
-    }
-
-    let currentMarks = {};
-    function setMark(key, val) {
-      currentMarks[key] = val;
-      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
-      const activeBtn = document.getElementById(`mark-${key}-${val}`);
-      if (activeBtn) {
-        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
-        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
-        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
-      }
-    }
-
-    function loadCheckData() {
-      const vSel = document.getElementById('check-vehicle'); if(!vSel || !vSel.value) return;
-      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
-      CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
-      document.getElementById('check-note').value = '';
-      const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
-      if(records.length > 0) {
-        records.forEach(r => { if(r.itemKey) setMark(r.itemKey, r.value); });
-        document.getElementById('check-note').value = records[0].note || '';
-      }
-    }
-
-    function saveCheckData() {
-      const vId = document.getElementById('check-vehicle').value; if(!vId) return;
-      updateStatus('loading', '点検データを保存中...');
-      sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
-    }
-
-    function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
-    function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
-    
-    function sendPostRequest(payload) {
-      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
-      .then(() => { setTimeout(loadAllData, 500); }).catch(err => updateStatus('error', '通信エラー: ' + err.message));
-    }
-
-    function updateStatus(type, text) {
-      const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
-      if(txt) txt.innerText = text;
-      if (bar && dot) {
-        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
-        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
-        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
-      }
-    }
-  </script>
-</body>
-</html>
+            isTodayPattern = true
