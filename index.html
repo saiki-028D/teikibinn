@@ -75,7 +75,7 @@
           <button onclick="changeMonth(1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200">次月 ▶</button>
         </div>
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-sm text-gray-500 mb-2">
-          <div class="text-red-500">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-500">土</div>
+          <div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div>
         </div>
         <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
       </div>
@@ -117,54 +117,6 @@
     </section>
 
   </main>
-
-  <div id="delivery-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 my-auto shadow-xl">
-      <div class="flex justify-between items-center border-b pb-2">
-        <h3 id="delivery-modal-title" class="text-base font-bold text-gray-900">📦 配送完了報告</h3>
-        <button onclick="closeDeliveryModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">×</button>
-      </div>
-      
-      <div class="space-y-4 text-left">
-        <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-100 space-y-2">
-          <span class="text-xs font-bold text-blue-900 block border-b border-blue-200 pb-1">🚚 納品（のうひん）の記録</span>
-          <div>
-            <label class="block text-[11px] font-bold text-gray-500 mb-1">納品写真</label>
-            <label class="border-2 border-dashed border-blue-300 rounded-lg p-3 text-center bg-white hover:bg-blue-50/50 transition cursor-pointer block">
-              <span class="text-xs text-blue-600 font-bold block">📸 写真を撮影・選択</span>
-              <span id="nouhin-file-status" class="text-[10px] text-gray-400 font-normal block mt-0.5">未選択</span>
-              <input type="file" id="nouhin-photo" accept="image/*" class="hidden" onchange="updateFileLabel('nouhin')">
-            </label>
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold text-gray-500 mb-1">納品メモ・内容</label>
-            <textarea id="nouhin-memo" placeholder="例: 納品ケース数、受領サインなど" class="w-full border border-gray-200 p-2 rounded-lg text-xs bg-white" rows="2"></textarea>
-          </div>
-        </div>
-
-        <div class="bg-green-50/70 p-3 rounded-xl border border-green-100 space-y-2">
-          <span class="text-xs font-bold text-green-900 block border-b border-green-200 pb-1">🔄 引取（ひきとり）の記録</span>
-          <div>
-            <label class="block text-[11px] font-bold text-gray-500 mb-1">引取写真</label>
-            <label class="border-2 border-dashed border-green-300 rounded-lg p-3 text-center bg-white hover:bg-green-50/50 transition cursor-pointer block">
-              <span class="text-xs text-green-700 font-bold block">📸 写真を撮影・選択</span>
-              <span id="hikitori-file-status" class="text-[10px] text-gray-400 font-normal block mt-0.5">未選択</span>
-              <input type="file" id="hikitori-photo" accept="image/*" class="hidden" onchange="updateFileLabel('hikitori')">
-            </label>
-          </div>
-          <div>
-            <label class="block text-[11px] font-bold text-gray-500 mb-1">引取メモ・内容</label>
-            <textarea id="hikitori-memo" placeholder="例: 空パレット回収数、持ち帰り資材など" class="w-full border border-gray-200 p-2 rounded-lg text-xs bg-white" rows="2"></textarea>
-          </div>
-        </div>
-      </div>
-
-      <div class="flex justify-end gap-2 text-sm pt-2 border-t">
-        <button onclick="closeDeliveryModal()" class="px-4 py-2 bg-gray-100 rounded-lg font-medium">キャンセル</button>
-        <button onclick="submitDeliveryReport()" class="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition">この内容で報告する</button>
-      </div>
-    </div>
-  </div>
 
   <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4">
@@ -219,9 +171,7 @@
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
     
     let db = { vehicles: [], routes: [], checks: [] }; 
-    let holidays = {}; 
     let currentYear, currentMonth;
-    let selectedDeliveryCompanyName = "";
     const todayObj = new Date();
     const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
     const todayDay = ['日','月','火','水','木','金','土'][todayObj.getDay()];
@@ -261,16 +211,8 @@
       document.getElementById('today-date-display').innerText = `${currentYear}年${currentMonth}月${todayObj.getDate()}日（${todayDay}）`;
       initCheckFormSelectors();
       renderCheckForm();
-      fetchHolidays();
+      loadAllData();
     };
-
-    function fetchHolidays() {
-      fetch('https://holidays-jp.github.io/api/v1/date.json')
-        .then(res => res.json())
-        .then(data => { holidays = data; })
-        .catch(() => { console.log('祝日データ取得失敗'); })
-        .finally(() => { loadAllData(); });
-    }
 
     function switchTab(tabId) {
       document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
@@ -309,6 +251,7 @@
       loadCheckData();
     }
 
+    // --- 💡 臨時エリアの表示・非表示を切り替える関数 ---
     function toggleOtherCompanies() {
       const container = document.getElementById('today-dispatch-selector-others');
       const btn = document.getElementById('btn-toggle-others');
@@ -321,6 +264,7 @@
       }
     }
 
+    // --- ① 今日の配車作成・調整（トグル切り替え付き） ---
     function renderTodayDispatchBuilder() {
       const mainContainer = document.getElementById('today-dispatch-selector');
       const othersContainer = document.getElementById('today-dispatch-selector-others-list');
@@ -330,59 +274,91 @@
       othersContainer.innerHTML = '';
       finalListContainer.innerHTML = '';
 
-      const uniqueCompanyNames = [...new Set(db.routes.map(r => r.name))].filter(Boolean);
-      const todaySlash = todayStr.replace(/-/g, '/');
-      const todayRecords = db.routes.filter(r => {
+      // マスタデータ
+      const baseCompanies = db.routes.filter(r => r.id && String(r.id).startsWith('C'));
+      
+      // 今日の日付レコード
+      const rawRecords = db.routes.filter(r => {
         if (!r.note) return false;
-        const noteStr = String(r.note).trim();
-        return noteStr.includes(todayStr) || noteStr.includes(todaySlash);
+        const noteStr = String(r.note).replace(/\//g, '-');
+        return noteStr.includes(todayStr);
       });
+
+      const todaySavedDispatches = rawRecords.filter(r => r.id && String(r.id).startsWith('D_'));
+      const advanceDispatches = rawRecords.filter(r => (!r.id || !String(r.id).startsWith('D_')) && r.days === 'GO');
 
       let mainItems = [];
       let otherItems = [];
 
-      uniqueCompanyNames.forEach(name => {
-        const base = db.routes.find(r => r.name === name && (!r.note || (!String(r.note).includes('-') && !String(r.note).includes('/'))));
-        const todayRow = todayRecords.find(s => s.name === name);
+      baseCompanies.forEach(c => {
+        const saved = todaySavedDispatches.find(s => s.name === c.name);
+        const advance = advanceDispatches.find(a => a.name === c.name);
 
         let isChecked = false;
-        let activeTime = todayRow ? (todayRow.time || '') : (base ? (base.time || '') : '');
-        let activeVehicleId = todayRow ? (todayRow.vehicleId || '') : (base ? (base.vehicleId || '') : '');
-        let typeLabel = base ? `パターン: ${base.days || '未設定'}` : '直入力データ';
+        let activeTime = c.time || '';
+        let activeVehicleId = '';
+        let typeLabel = `パターン: ${c.days}`;
         let isTodayPattern = false;
-        
-        let finalId = 'ROW_' + name.replace(/\s+/g, '');
 
-        if (todayRow) {
-          isTodayPattern = true;
-          isChecked = (todayRow.days === 'GO');
-          typeLabel = `📅 スプレッド日付入力あり (${todayRow.days})`;
-        } else if (base) {
-          if (base.days === '毎営業日') {
+        if (saved) {
+          isTodayPattern = true; // すでに今日データが保存されていればメイン側に残す
+          isChecked = saved.days === 'GO';
+          activeTime = saved.time || '';
+          activeVehicleId = saved.vehicleId || '';
+        } else if (advance) {
+          isTodayPattern = true; // 事前予定があればメイン
+          isChecked = true;
+          activeTime = advance.time || c.time || '';
+          activeVehicleId = advance.vehicleId || '';
+          typeLabel = `⚠️ スプレッド事前予定あり`;
+        } else {
+          // 定期パターン自動チェック判定
+          if (c.days === '毎営業日') {
             isTodayPattern = true;
             isChecked = true;
-          } else if (base.days && String(base.days).split(',').map(d => d.trim()).includes(todayDay)) {
+          } else if (c.days && String(c.days).split(',').includes(todayDay)) {
             isTodayPattern = true;
             isChecked = true;
-          } else if (!base.days || String(base.days).includes('不定期')) {
-            isTodayPattern = true; 
+          } else if (!c.days || String(c.days).includes('不定期')) {
+            isTodayPattern = true; // 不定期は毎日メイン側に並べる
             isChecked = false;
           } else {
-            isTodayPattern = false; 
+            isTodayPattern = false; // 今日とは違う曜日のルート
             isChecked = false;
           }
-        } else {
-          isTodayPattern = true;
         }
 
         const itemObj = {
-          id: finalId, name: name, time: activeTime, vehicleId: activeVehicleId, isChecked: isChecked, label: typeLabel
+          id: c.id,
+          name: c.name,
+          time: activeTime,
+          vehicleId: activeVehicleId,
+          isChecked: isChecked,
+          label: typeLabel
         };
 
-        if (isTodayPattern) mainItems.push(itemObj);
-        else otherItems.push(itemObj);
+        if (isTodayPattern) {
+          mainItems.push(itemObj);
+        } else {
+          otherItems.push(itemObj);
+        }
       });
 
+      // マスタにない単発スポット予定を統合（メインに表示）
+      advanceDispatches.forEach(a => {
+        if (!mainItems.some(item => item.name === a.name) && !otherItems.some(item => item.name === a.name)) {
+          mainItems.push({
+            id: 'ADV_' + Date.now() + Math.random(),
+            name: a.name,
+            time: a.time || '',
+            vehicleId: a.vehicleId || '',
+            isChecked: true,
+            label: `単発スポット予定（事前手入力）`
+          });
+        }
+      });
+
+      // 車両選択肢の生成共通関数
       const makeVehicleOptions = (selectedId) => {
         let options = '<option value="">-- 車両選択 --</option>';
         db.vehicles.forEach(v => {
@@ -391,6 +367,7 @@
         return options;
       };
 
+      // HTML生成共通関数
       const createRowHtml = (item) => {
         return `
           <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 bg-gray-50/50">
@@ -408,39 +385,46 @@
           </div>`;
       };
 
+      // ① メイン一覧の描画（今日の定期＋不定期）
       if (mainItems.length === 0) {
-        mainContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">本日の運行予定はありません。</p>';
+        mainContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">本日の定期・不定期予定はありません。</p>';
       } else {
         mainItems.forEach(item => { mainContainer.innerHTML += createRowHtml(item); });
       }
 
+      // ② 臨時一覧の描画（それ以外の曜日マスタ）
       if (otherItems.length === 0) {
         othersContainer.innerHTML = '<p class="text-xs text-gray-400 py-1">他の曜日のマスタデータはありません。</p>';
       } else {
         otherItems.forEach(item => { othersContainer.innerHTML += createRowHtml(item); });
       }
 
-      // 元通りの配置スケジュール一覧
-      const checkedRuns = [...mainItems, ...otherItems].filter(i => i.isChecked);
-      if (checkedRuns.length === 0) {
-        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">運行予定がありません。</p>';
+      // 確定スケジュールの表示
+      let activeRuns = [];
+      if (todaySavedDispatches.length > 0) {
+        activeRuns = todaySavedDispatches.filter(s => s.days === 'GO');
       } else {
-        checkedRuns.forEach(s => {
+        // 保存データがなければ、メイン側でチェックが入っているものを仮表示
+        activeRuns = mainItems.filter(i => i.isChecked);
+      }
+
+      if (activeRuns.length === 0) {
+        finalListContainer.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">本日の運行はまだ確定していないか、予定がありません。</p>';
+      } else {
+        activeRuns.forEach(s => {
           const v = db.vehicles.find(vec => vec.id == s.vehicleId);
           finalListContainer.innerHTML += `
-            <div class="border-b last:border-0 pb-3 last:pb-0 flex flex-wrap justify-between items-center text-sm gap-2">
+            <div class="border-b last:border-0 pb-2 last:pb-0 flex justify-between items-center text-sm">
               <div>
                 <span class="text-xs font-bold px-2 py-0.5 rounded mr-2 bg-blue-100 text-blue-800">${s.time || '時間指定なし'}</span>
                 <strong class="text-gray-900">${s.name}</strong>
-                <span class="block text-xs text-gray-500 mt-0.5">🚚 ${v ? v.name : '車両未定'}</span>
               </div>
-              <button onclick="openDeliveryModal('${s.name}')" class="bg-blue-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium hover:bg-blue-700 transition">
-                実績入力
-              </button>
+              <span class="text-xs font-medium px-2 py-1 bg-gray-100 rounded text-gray-700">🚚 ${v ? v.name : '車両未定'}</span>
             </div>`;
         });
       }
 
+      // 車両アラート
       const alerts = document.getElementById('today-alerts');
       alerts.innerHTML = '';
       let alertCount = 0;
@@ -458,6 +442,7 @@
 
     function saveTodayDispatch() {
       updateStatus('loading', '本日の運行計画を保存中...');
+      // 💡 メイン側と臨時エリアの両方からチェックボックスをすべて取得して保存する
       const checkboxes = document.querySelectorAll('#today-dispatch-selector input[type="checkbox"], #today-dispatch-selector-others-list input[type="checkbox"]');
       let completed = 0;
       if(checkboxes.length === 0) { loadAllData(); return; }
@@ -468,12 +453,17 @@
         const timeVal = document.getElementById(`time-${idAttr}`).value;
         const vecVal = document.getElementById(`vec-${idAttr}`).value;
         const name = chk.getAttribute('data-name');
-        
         const dispatchId = 'D_' + todayStr + '_' + name.replace(/\s+/g, '');
 
         const rowData = {
-          id: dispatchId, name: name, from: '', to: '', time: timeVal, vehicleId: vecVal,
-          days: isChecked ? 'GO' : 'SKIP', note: todayStr
+          id: dispatchId,
+          name: name,
+          from: '',
+          to: '',
+          time: timeVal,
+          vehicleId: vecVal,
+          days: isChecked ? 'GO' : 'SKIP',
+          note: todayStr
         };
 
         fetch(GAS_URL, {
@@ -484,6 +474,7 @@
         }).then(() => {
           completed++;
           if (completed === checkboxes.length) {
+            // 保存が終わったら臨時エリアを閉じる
             document.getElementById('today-dispatch-selector-others').classList.add('hidden');
             document.getElementById('btn-toggle-others').innerHTML = '<span>＋ 他の曜日の取引先（臨時便用）を表示する</span>';
             setTimeout(loadAllData, 1000);
@@ -492,49 +483,7 @@
       });
     }
 
-    function openDeliveryModal(companyName) {
-      selectedDeliveryCompanyName = companyName;
-      document.getElementById('delivery-modal-title').innerText = `📦 ${companyName} 配送完了報告`;
-      
-      document.getElementById('nouhin-photo').value = "";
-      document.getElementById('nouhin-memo').value = "";
-      document.getElementById('nouhin-file-status').innerText = "未選択";
-      
-      document.getElementById('hikitori-photo').value = "";
-      document.getElementById('hikitori-memo').value = "";
-      document.getElementById('hikitori-file-status').innerText = "未選択";
-
-      document.getElementById('delivery-modal').classList.remove('hidden');
-    }
-
-    function closeDeliveryModal() {
-      document.getElementById('delivery-modal').classList.add('hidden');
-    }
-
-    function updateFileLabel(type) {
-      const fileInput = document.getElementById(`${type}-photo`);
-      const statusSpan = document.getElementById(`${type}-file-status`);
-      if (fileInput.files.length > 0) {
-        statusSpan.innerText = `選択済: ${fileInput.files[0].name}`;
-        statusSpan.className = "text-[10px] text-blue-600 font-bold block mt-0.5";
-      } else {
-        statusSpan.innerText = "未選択";
-        statusSpan.className = "text-[10px] text-gray-400 font-normal block mt-0.5";
-      }
-    }
-
-    function submitDeliveryReport() {
-      const nouhinMemo = document.getElementById('nouhin-memo').value;
-      const hikitoriMemo = document.getElementById('hikitori-memo').value;
-      updateStatus('loading', '配送実績を送信中...');
-      
-      setTimeout(() => {
-        alert(`${selectedDeliveryCompanyName} の配送実績（納品/引取）を登録しました！`);
-        closeDeliveryModal();
-        updateStatus('success', '配送実績の報告完了');
-      }, 1200);
-    }
-
+    // --- ② カレンダー実績表示 ---
     function changeMonth(diff) {
       currentMonth += diff;
       if (currentMonth > 12) { currentYear++; currentMonth = 1; }
@@ -553,29 +502,8 @@
       for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="h-14 bg-gray-50 border border-gray-100 rounded"></div>';
 
       for (let date = 1; date <= lastDate; date++) {
-        const dObj = new Date(currentYear, currentMonth - 1, date);
-        const dayIdx = dObj.getDay();
         const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-        const formattedDateSlash = `${currentYear}/${String(currentMonth).padStart(2,'0')}/${String(date).padStart(2,'0')}`;
-        
-        const isHolidayOrWeekend = (dayIdx === 0 || dayIdx === 6 || holidays[formattedDate] !== undefined);
-
-        if (isHolidayOrWeekend) {
-          let labelColor = "text-red-400";
-          if (dayIdx === 6 && holidays[formattedDate] === undefined) labelColor = "text-blue-400";
-          grid.innerHTML += `
-            <div class="h-14 bg-gray-100/70 border border-gray-200 rounded p-1 text-left select-none">
-              <span class="text-xs font-bold ${labelColor}">${date}</span>
-              <span class="block text-[9px] text-gray-400 text-center mt-1">休み</span>
-            </div>`;
-          continue;
-        }
-
-        const hasHistory = db.routes.some(r => {
-          if (!r.note || r.days !== 'GO') return false;
-          const noteStr = String(r.note).trim();
-          return noteStr.includes(formattedDate) || noteStr.includes(formattedDateSlash);
-        });
+        const hasHistory = db.routes.some(r => r.note && String(r.note).replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
         const hasShaken = db.vehicles.some(v => v.shaken === formattedDate);
 
         let indicators = '';
@@ -583,7 +511,7 @@
         if (hasShaken) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>';
 
         grid.innerHTML += `
-          <button onclick="showCalendarDetail(${date})" class="h-14 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-gray-100">
+          <button onclick="showCalendarDetail(${date})" class="h-14 bg-white border border-gray-100 rounded p-1 flex flex-col justify-between text-left hover:bg-gray-50">
             <span class="text-xs font-bold text-gray-700">${date}</span>
             <div class="flex gap-0.5 justify-end">${indicators}</div>
           </button>`;
@@ -597,30 +525,25 @@
       detail.classList.remove('hidden');
       
       const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
-      const formattedDateSlash = `${currentYear}/${String(currentMonth).padStart(2,'0')}/${String(date).padStart(2,'0')}`;
       dateTitle.innerText = `${formattedDate} の運行リスト`;
       list.innerHTML = '';
 
-      const dayDispatches = db.routes.filter(r => {
-        if (!r.note || r.days !== 'GO') return false;
-        const noteStr = String(r.note).trim();
-        return noteStr.includes(formattedDate) || noteStr.includes(formattedDateSlash);
-      });
-
+      const dayDispatches = db.routes.filter(r => r.note && String(r.note).replace(/\//g, '-').includes(formattedDate) && r.days === 'GO');
       if (dayDispatches.length > 0) {
         dayDispatches.forEach(r => {
           const v = db.vehicles.find(vec => vec.id == r.vehicleId);
-          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】</div>`;
+          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】 ${String(r.note).startsWith('D_') ? '' : '(事前予定)'}</div>`;
         });
       } else {
         list.innerHTML = '<p class="text-xs text-gray-400">この日の稼働または予定はありません。</p>';
       }
     }
 
+    // --- ③ 取引先マスタ管理 ---
     function renderCompanies() {
       const list = document.getElementById('companies-list');
       list.innerHTML = '';
-      const companies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
+      const companies = db.routes.filter(r => r.id && String(r.id).startsWith('C'));
       
       companies.forEach(c => {
         list.innerHTML += `
@@ -628,7 +551,7 @@
             <div>
               <div class="flex justify-between items-start mb-1">
                 <h4 class="font-bold text-gray-900">${c.name}</h4>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days || '未指定'}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days}</span>
               </div>
               <p class="text-xs text-gray-500">${c.time ? 'デフォルト時刻: ' + c.time : '時刻指定なし'}</p>
               ${c.note ? `<p class="text-xs bg-yellow-50 text-yellow-700 p-1.5 rounded mt-2 border border-yellow-100">💡 ${c.note}</p>` : ''}
@@ -652,7 +575,7 @@
         document.getElementById('c-note').value = data.note || '';
       } else {
         document.getElementById('company-modal-title').innerText = '取引先の新規登録';
-        document.getElementById('c-id').value = 'M_' + Date.now(); 
+        document.getElementById('c-id').value = 'C' + Date.now(); 
         document.getElementById('c-name').value = '';
         document.getElementById('c-time').value = ''; 
         document.getElementById('c-pattern').value = '毎営業日';
@@ -673,6 +596,7 @@
       upsertRow('routes', id, rowData); closeCompanyModal();
     }
 
+    // --- ④ 車両管理 ---
     function renderVehicles() {
       const list = document.getElementById('vehicles-list'); list.innerHTML = '';
       db.vehicles.forEach(v => {
@@ -710,20 +634,19 @@
       upsertRow('vehicles', id, rowData); closeVehicleModal();
     }
 
+    // --- ⑤ 点検表ロジック ---
     function updateDropdowns() {
-      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
+      const cSel = document.getElementById('check-vehicle'); cSel.innerHTML = '';
+      db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
     }
     function initCheckFormSelectors() {
       const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
-      if(yearSel && monthSel) {
-        yearSel.innerHTML = ''; monthSel.innerHTML = '';
-        for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
-        for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
-      }
+      yearSel.innerHTML = ''; monthSel.innerHTML = '';
+      for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
+      for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
     }
     function renderCheckForm() {
-      const container = document.getElementById('check-form-container'); if(!container) return;
-      container.innerHTML = '';
+      const container = document.getElementById('check-form-container'); container.innerHTML = '';
       const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
       categories.forEach(cat => {
         let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
@@ -744,17 +667,16 @@
     let currentMarks = {};
     function setMark(key, val) {
       currentMarks[key] = val;
-      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
+      ['○', '△', '×'].forEach(v => { document.getElementById(`mark-${key}-${v}`).className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
       const activeBtn = document.getElementById(`mark-${key}-${val}`);
-      if (activeBtn) {
-        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
-        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
-        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
-      }
+      if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
+      if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
+      if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
     }
     function loadCheckData() {
-      const vSel = document.getElementById('check-vehicle'); if(!vSel) return;
-      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
+      const vId = document.getElementById('check-vehicle').value;
+      const year = document.getElementById('check-year').value;
+      const month = document.getElementById('check-month').value;
       CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
       document.getElementById('check-note').value = ''; if(!vId) return;
       const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
@@ -769,6 +691,7 @@
       sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
     }
 
+    // --- 🌐 通信共通 ---
     function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
     function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
     function sendPostRequest(payload) {
@@ -778,12 +701,10 @@
     }
     function updateStatus(type, text) {
       const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
-      if(txt) txt.innerText = text;
-      if (bar && dot) {
-        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
-        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
-        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
-      }
+      txt.innerText = text;
+      if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
+      else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
+      else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
     }
   </script>
 </body>
