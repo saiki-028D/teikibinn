@@ -251,7 +251,6 @@
       loadCheckData();
     }
 
-    // --- 💡 臨時エリアの表示・非表示を切り替える関数 ---
     function toggleOtherCompanies() {
       const container = document.getElementById('today-dispatch-selector-others');
       const btn = document.getElementById('btn-toggle-others');
@@ -264,7 +263,7 @@
       }
     }
 
-    // --- ① 今日の配車作成・調整（トグル切り替え付き） ---
+    // --- ① 今日の配車作成・調整（元のID運用に完全準拠版） ---
     function renderTodayDispatchBuilder() {
       const mainContainer = document.getElementById('today-dispatch-selector');
       const othersContainer = document.getElementById('today-dispatch-selector-others-list');
@@ -274,63 +273,74 @@
       othersContainer.innerHTML = '';
       finalListContainer.innerHTML = '';
 
-      // マスタデータ
-      const baseCompanies = db.routes.filter(r => r.id && String(r.id).startsWith('C'));
+      // 💡 重複を除いた「取引先リスト」をマスタ（routesシート全体）から抽出
+      const uniqueCompanyNames = [...new Set(db.routes.map(r => r.name))].filter(Boolean);
       
-      // 今日の日付レコード
-      const rawRecords = db.routes.filter(r => {
+      // 今日の日付レコードを取得
+      const todayRecords = db.routes.filter(r => {
         if (!r.note) return false;
         const noteStr = String(r.note).replace(/\//g, '-');
         return noteStr.includes(todayStr);
       });
 
-      const todaySavedDispatches = rawRecords.filter(r => r.id && String(r.id).startsWith('D_'));
-      const advanceDispatches = rawRecords.filter(r => (!r.id || !String(r.id).startsWith('D_')) && r.days === 'GO');
+      // 今日確定した当日運行分（D_始まりで本日の保存データ）
+      const todaySavedDispatches = todayRecords.filter(r => r.id && String(r.id).startsWith('D_'));
+      // スプレッドにあらかじめ手入力された事前予定（daysがGOで、本日日付が入っているもの）
+      const advanceDispatches = todayRecords.filter(r => (!r.id || !String(r.id).startsWith('D_')) && r.days === 'GO');
 
       let mainItems = [];
       let otherItems = [];
 
-      baseCompanies.forEach(c => {
-        const saved = todaySavedDispatches.find(s => s.name === c.name);
-        const advance = advanceDispatches.find(a => a.name === c.name);
+      uniqueCompanyNames.forEach(name => {
+        // マスタ側の基本パターン行を探す
+        const base = db.routes.find(r => r.name === name && (!r.note || !String(r.note).includes('-')));
+        // 今日保存されたデータ
+        const saved = todaySavedDispatches.find(s => s.name === name);
+        // スプレッド直入力の事前予定
+        const advance = advanceDispatches.find(a => a.name === name);
 
         let isChecked = false;
-        let activeTime = c.time || '';
-        let activeVehicleId = '';
-        let typeLabel = `パターン: ${c.days}`;
+        let activeTime = base ? (base.time || '') : '';
+        let activeVehicleId = base ? (base.vehicleId || '') : '';
+        let typeLabel = base ? `パターン: ${base.days || '未設定'}` : '直入力データ';
         let isTodayPattern = false;
+        let finalId = base ? base.id : ('D_' + todayStr + '_' + name.replace(/\s+/g, ''));
 
         if (saved) {
-          isTodayPattern = true; // すでに今日データが保存されていればメイン側に残す
+          isTodayPattern = true; // 今日すでに確定データがあればメイン表示
           isChecked = saved.days === 'GO';
-          activeTime = saved.time || '';
-          activeVehicleId = saved.vehicleId || '';
+          activeTime = saved.time || activeTime;
+          activeVehicleId = saved.vehicleId || activeVehicleId;
+          finalId = saved.id;
         } else if (advance) {
-          isTodayPattern = true; // 事前予定があればメイン
+          isTodayPattern = true; // スプレッド事前手入力があればメイン
           isChecked = true;
-          activeTime = advance.time || c.time || '';
-          activeVehicleId = advance.vehicleId || '';
-          typeLabel = `⚠️ スプレッド事前予定あり`;
-        } else {
-          // 定期パターン自動チェック判定
-          if (c.days === '毎営業日') {
+          activeTime = advance.time || activeTime;
+          activeVehicleId = advance.vehicleId || activeVehicleId;
+          typeLabel = `📅 スプレッド事前手入力あり`;
+        } else if (base) {
+          // マスタデータに基づく判定
+          if (base.days === '毎営業日') {
             isTodayPattern = true;
             isChecked = true;
-          } else if (c.days && String(c.days).split(',').includes(todayDay)) {
+          } else if (base.days && String(base.days).split(',').includes(todayDay)) {
             isTodayPattern = true;
             isChecked = true;
-          } else if (!c.days || String(c.days).includes('不定期')) {
-            isTodayPattern = true; // 不定期は毎日メイン側に並べる
+          } else if (!base.days || String(base.days).includes('不定期')) {
+            isTodayPattern = true; // 不定期は毎日メイン側に表示（チェックはOFF）
             isChecked = false;
           } else {
-            isTodayPattern = false; // 今日とは違う曜日のルート
+            isTodayPattern = false; // 今日とは異なるパターンの定期会社 ➡️ 臨時エリアへ
             isChecked = false;
           }
+        } else {
+          // マスタになく、今日の日付だけで入ってきたデータ
+          isTodayPattern = true;
         }
 
         const itemObj = {
-          id: c.id,
-          name: c.name,
+          id: finalId,
+          name: name,
           time: activeTime,
           vehicleId: activeVehicleId,
           isChecked: isChecked,
@@ -344,21 +354,6 @@
         }
       });
 
-      // マスタにない単発スポット予定を統合（メインに表示）
-      advanceDispatches.forEach(a => {
-        if (!mainItems.some(item => item.name === a.name) && !otherItems.some(item => item.name === a.name)) {
-          mainItems.push({
-            id: 'ADV_' + Date.now() + Math.random(),
-            name: a.name,
-            time: a.time || '',
-            vehicleId: a.vehicleId || '',
-            isChecked: true,
-            label: `単発スポット予定（事前手入力）`
-          });
-        }
-      });
-
-      // 車両選択肢の生成共通関数
       const makeVehicleOptions = (selectedId) => {
         let options = '<option value="">-- 車両選択 --</option>';
         db.vehicles.forEach(v => {
@@ -367,7 +362,6 @@
         return options;
       };
 
-      // HTML生成共通関数
       const createRowHtml = (item) => {
         return `
           <div class="flex flex-wrap items-center justify-between p-3 border rounded-xl gap-2 bg-gray-50/50">
@@ -385,14 +379,14 @@
           </div>`;
       };
 
-      // ① メイン一覧の描画（今日の定期＋不定期）
+      // ① メイン一覧の描画
       if (mainItems.length === 0) {
         mainContainer.innerHTML = '<p class="text-xs text-center py-4 text-gray-400">本日の定期・不定期予定はありません。</p>';
       } else {
         mainItems.forEach(item => { mainContainer.innerHTML += createRowHtml(item); });
       }
 
-      // ② 臨時一覧の描画（それ以外の曜日マスタ）
+      // ② 臨時一覧の描画
       if (otherItems.length === 0) {
         othersContainer.innerHTML = '<p class="text-xs text-gray-400 py-1">他の曜日のマスタデータはありません。</p>';
       } else {
@@ -404,7 +398,6 @@
       if (todaySavedDispatches.length > 0) {
         activeRuns = todaySavedDispatches.filter(s => s.days === 'GO');
       } else {
-        // 保存データがなければ、メイン側でチェックが入っているものを仮表示
         activeRuns = mainItems.filter(i => i.isChecked);
       }
 
@@ -442,7 +435,6 @@
 
     function saveTodayDispatch() {
       updateStatus('loading', '本日の運行計画を保存中...');
-      // 💡 メイン側と臨時エリアの両方からチェックボックスをすべて取得して保存する
       const checkboxes = document.querySelectorAll('#today-dispatch-selector input[type="checkbox"], #today-dispatch-selector-others-list input[type="checkbox"]');
       let completed = 0;
       if(checkboxes.length === 0) { loadAllData(); return; }
@@ -453,6 +445,8 @@
         const timeVal = document.getElementById(`time-${idAttr}`).value;
         const vecVal = document.getElementById(`vec-${idAttr}`).value;
         const name = chk.getAttribute('data-name');
+        
+        // 💡 保存時のIDは元の仕組みどおり D_今日の日付_会社名 に統一
         const dispatchId = 'D_' + todayStr + '_' + name.replace(/\s+/g, '');
 
         const rowData = {
@@ -474,7 +468,6 @@
         }).then(() => {
           completed++;
           if (completed === checkboxes.length) {
-            // 保存が終わったら臨時エリアを閉じる
             document.getElementById('today-dispatch-selector-others').classList.add('hidden');
             document.getElementById('btn-toggle-others').innerHTML = '<span>＋ 他の曜日の取引先（臨時便用）を表示する</span>';
             setTimeout(loadAllData, 1000);
@@ -532,7 +525,7 @@
       if (dayDispatches.length > 0) {
         dayDispatches.forEach(r => {
           const v = db.vehicles.find(vec => vec.id == r.vehicleId);
-          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】 ${String(r.note).startsWith('D_') ? '' : '(事前予定)'}</div>`;
+          list.innerHTML += `<div class="text-xs p-2 bg-blue-50 text-blue-900 rounded">🚚 <strong>${r.time || '未指定'}</strong> ${r.name} 【車両: ${v?v.name:'未定'}】 ${String(r.id).startsWith('D_') ? '' : '(事前予定)'}</div>`;
         });
       } else {
         list.innerHTML = '<p class="text-xs text-gray-400">この日の稼働または予定はありません。</p>';
@@ -543,7 +536,9 @@
     function renderCompanies() {
       const list = document.getElementById('companies-list');
       list.innerHTML = '';
-      const companies = db.routes.filter(r => r.id && String(r.id).startsWith('C'));
+      
+      // マスタとして扱うのは、日付の入っていない行
+      const companies = db.routes.filter(r => !r.note || !String(r.note).includes('-'));
       
       companies.forEach(c => {
         list.innerHTML += `
@@ -551,7 +546,7 @@
             <div>
               <div class="flex justify-between items-start mb-1">
                 <h4 class="font-bold text-gray-900">${c.name}</h4>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days}</span>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days || '未指定'}</span>
               </div>
               <p class="text-xs text-gray-500">${c.time ? 'デフォルト時刻: ' + c.time : '時刻指定なし'}</p>
               ${c.note ? `<p class="text-xs bg-yellow-50 text-yellow-700 p-1.5 rounded mt-2 border border-yellow-100">💡 ${c.note}</p>` : ''}
@@ -575,7 +570,8 @@
         document.getElementById('c-note').value = data.note || '';
       } else {
         document.getElementById('company-modal-title').innerText = '取引先の新規登録';
-        document.getElementById('c-id').value = 'C' + Date.now(); 
+        // 💡 マスタのIDも元の規則（M_始まり、またはそのままD_）で競合しないよう日付を含まないユニークIDにします
+        document.getElementById('c-id').value = 'M_' + Date.now(); 
         document.getElementById('c-name').value = '';
         document.getElementById('c-time').value = ''; 
         document.getElementById('c-pattern').value = '毎営業日';
