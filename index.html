@@ -307,25 +307,26 @@
       document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600';
     }
 
+    // 【超軽量化】3つのシートデータを一撃1回でまとめて取得
     function loadAllData() {
-      updateStatus('loading', '最新情報を取得中...');
-      let loadedCount = 0;
-      const sheets = ['vehicles', 'routes', 'checks'];
+      updateStatus('loading', '最新情報を高速取得中...');
+      
+      window.callback_all = function(response) {
+        if (response && response.data) {
+          db.vehicles = response.data.vehicles || [];
+          db.routes = response.data.routes || [];
+          db.checks = response.data.checks || [];
+          updateStatus('success', 'スプレッドシートと高速同期完了');
+          refreshAllViews();
+        } else {
+          updateStatus('error', 'データの解析に失敗しました');
+        }
+      };
 
-      sheets.forEach(sheet => {
-        const callbackName = `callback_${sheet}`;
-        window[callbackName] = function(response) {
-          db[sheet] = response.data || [];
-          loadedCount++;
-          if (loadedCount === sheets.length) {
-            updateStatus('success', 'スプレッドシートと同期完了');
-            refreshAllViews();
-          }
-        };
-        const script = document.createElement('script');
-        script.src = `${GAS_URL}?sheet=${sheet}&callback=${callbackName}&_=${Date.now()}`;
-        document.body.appendChild(script);
-      });
+      const script = document.createElement('script');
+      // sheet=all を指定してまとめて取得を要請
+      script.src = `${GAS_URL}?sheet=all&callback=callback_all&_=${Date.now()}`;
+      document.body.appendChild(script);
     }
 
     function refreshAllViews() {
@@ -514,7 +515,7 @@
           if (completed === checkboxes.length) {
             document.getElementById('today-dispatch-selector-others').classList.add('hidden');
             document.getElementById('btn-toggle-others').innerHTML = '<span>＋ 他の曜日の取引先（臨時便用）を表示する</span>';
-            setTimeout(loadAllData, 1000);
+            setTimeout(loadAllData, 500);
           }
         });
       });
@@ -523,15 +524,12 @@
     function openDeliveryModal(companyName) {
       selectedDeliveryCompanyName = companyName;
       document.getElementById('delivery-modal-title').innerText = `📦 ${companyName} 配送完了報告`;
-      
       document.getElementById('nouhin-photo').value = "";
       document.getElementById('nouhin-memo').value = "";
       document.getElementById('nouhin-file-status').innerText = "未選択";
-      
       document.getElementById('hikitori-photo').value = "";
       document.getElementById('hikitori-memo').value = "";
       document.getElementById('hikitori-file-status').innerText = "未選択";
-
       document.getElementById('delivery-modal').classList.remove('hidden');
     }
 
@@ -555,7 +553,6 @@
       const nouhinMemo = document.getElementById('nouhin-memo').value;
       const hikitoriMemo = document.getElementById('hikitori-memo').value;
       
-      // 実績保存時に、現在の運行レコードIDを特定、または新規作成して写真・メモ情報を上書き
       updateStatus('loading', '配送実績を送信中...');
       
       const dispatchId = 'D_' + todayStr + '_' + selectedDeliveryCompanyName.replace(/\s+/g, '');
@@ -565,5 +562,338 @@
       const rowData = {
         id: dispatchId,
         name: selectedDeliveryCompanyName,
-        from: nouhinMemo ? 'MEMO_ATTACHED' : '', // 簡易判別用フラグ
-        to: hikitoriMemo ? 'MEMO
+        from: nouhinMemo ? 'MEMO_ATTACHED' : '',
+        to: hikitoriMemo ? 'MEMO_ATTACHED' : '',
+        time: existRow ? existRow.time : (base ? base.time : ''),
+        vehicleId: existRow ? existRow.vehicleId : (base ? base.vehicleId : ''),
+        days: 'GO',
+        note: `${todayStr}__N:${nouhinMemo}__H:${hikitoriMemo}`
+      };
+
+      fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', sheet: 'routes', id: dispatchId, row: rowData })
+      }).then(() => {
+        closeDeliveryModal();
+        alert(`${selectedDeliveryCompanyName} の配送実績（納品/引取）を登録しました！`);
+        setTimeout(loadAllData, 500);
+      });
+    }
+
+    function changeMonth(diff) {
+      currentMonth += diff;
+      if (currentMonth > 12) { currentYear++; currentMonth = 1; }
+      if (currentMonth < 1) { currentYear--; currentMonth = 12; }
+      renderCalendar();
+    }
+
+    function renderCalendar() {
+      document.getElementById('calendar-month-title').innerText = `${currentYear}年 ${currentMonth}月`;
+      const grid = document.getElementById('calendar-grid');
+      grid.innerHTML = '';
+      
+      const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
+      const lastDate = new Date(currentYear, currentMonth, 0).getDate();
+
+      for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="h-14 bg-gray-50 border border-gray-100 rounded"></div>';
+
+      const masterCompanies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
+
+      for (let date = 1; date <= lastDate; date++) {
+        const dObj = new Date(currentYear, currentMonth - 1, date);
+        const dayIdx = dObj.getDay();
+        const weekDayStr = ['日','月','火','水','木','金','土'][dayIdx];
+        const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+        
+        const isHoliday = (holidays[formattedDate] !== undefined);
+        const isWeekendOrHoliday = (dayIdx === 0 || dayIdx === 6 || isHoliday);
+
+        const daySavedRecords = db.routes.filter(r => r.note && String(r.note).startsWith(formattedDate));
+        
+        let hasActiveRoute = false;
+        if (daySavedRecords.length > 0) {
+          hasActiveRoute = daySavedRecords.some(r => r.days === 'GO');
+        } else if (!isWeekendOrHoliday) {
+          hasActiveRoute = masterCompanies.some(c => {
+            if (c.days === '毎営業日') return true;
+            if (c.days && String(c.days).split(',').map(d => d.trim()).includes(weekDayStr)) return true;
+            return false;
+          });
+        }
+
+        const hasShaken = db.vehicles.some(v => v.shaken === formattedDate);
+
+        let indicators = '';
+        if (hasActiveRoute) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block"></span>';
+        if (hasShaken) indicators += '<span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span>';
+
+        let bgClass = "bg-white hover:bg-gray-100";
+        let labelColor = "text-gray-700";
+        if (isHoliday || dayIdx === 0) { bgClass = "bg-red-50/40 hover:bg-red-50"; labelColor = "text-red-500"; }
+        else if (dayIdx === 6) { bgClass = "bg-blue-50/40 hover:bg-blue-50"; labelColor = "text-blue-500"; }
+
+        grid.innerHTML += `
+          <button onclick="showCalendarDetail(${date})" class="h-14 ${bgClass} border border-gray-100 rounded p-1 flex flex-col justify-between text-left transition">
+            <span class="text-xs font-bold ${labelColor}">${date}</span>
+            <div class="flex gap-0.5 justify-end">${indicators}</div>
+          </button>`;
+      }
+    }
+
+    function showCalendarDetail(date) {
+      const detail = document.getElementById('calendar-detail');
+      const dateTitle = document.getElementById('calendar-detail-date');
+      const list = document.getElementById('calendar-detail-list');
+      detail.classList.remove('hidden');
+      
+      const formattedDate = `${currentYear}-${String(currentMonth).padStart(2,'0')}-${String(date).padStart(2,'0')}`;
+      const dObj = new Date(currentYear, currentMonth - 1, date);
+      const weekDayStr = ['日','月','火','水','木','金','土'][dObj.getDay()];
+      
+      dateTitle.innerText = `📅 ${currentYear}年${currentMonth}月${date}日（${weekDayStr}）の運行リスト`;
+      list.innerHTML = '';
+
+      const isHoliday = (holidays[formattedDate] !== undefined);
+      const isWeekendOrHoliday = (dObj.getDay() === 0 || dObj.getDay() === 6 || isHoliday);
+
+      const daySavedRecords = db.routes.filter(r => r.note && String(r.note).startsWith(formattedDate));
+      const masterCompanies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
+
+      let displayRoutes = [];
+
+      if (daySavedRecords.length > 0) {
+        daySavedRecords.forEach(r => {
+          if (r.days === 'GO') {
+            displayRoutes.push({ name: r.name, time: r.time || '時間未定', vehicleId: r.vehicleId, record: r });
+          }
+        });
+      } else if (!isWeekendOrHoliday) {
+        masterCompanies.forEach(c => {
+          let isMatch = false;
+          if (c.days === '毎営業日') isMatch = true;
+          else if (c.days && String(c.days).split(',').map(d => d.trim()).includes(weekDayStr)) isMatch = true;
+
+          if (isMatch) {
+            displayRoutes.push({ name: c.name, time: c.time || '時間未定', vehicleId: '', record: null });
+          }
+        });
+      }
+
+      if (displayRoutes.length > 0) {
+        displayRoutes.sort((a,b) => (a.time > b.time ? 1 : -1));
+        displayRoutes.forEach(r => {
+          const v = db.vehicles.find(vec => vec.id == r.vehicleId);
+          const vehicleName = v ? v.name : '車両未定';
+          
+          let hasReport = false;
+          let reportDataAttr = "null";
+          
+          if (r.record && String(r.record.note).includes('__N:')) {
+            hasReport = true;
+            const safeRecord = JSON.stringify(r.record).replace(/"/g, '&quot;');
+            reportDataAttr = `${safeRecord}`;
+          }
+
+          list.innerHTML += `
+            <div onclick="clickRouteDetail('${r.name}', ${reportDataAttr})" class="p-3 bg-gray-50 rounded-xl border border-gray-200 flex justify-between items-center cursor-pointer hover:bg-blue-50/60 hover:border-blue-200 transition">
+              <div>
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-2">${r.time}</span>
+                <strong class="text-sm text-gray-900">${r.name}</strong>
+                <span class="block text-xs text-gray-500 mt-0.5">🚚 車両: ${vehicleName}</span>
+              </div>
+              <div>
+                ${hasReport 
+                  ? '<span class="text-[10px] bg-green-600 text-white font-bold px-2 py-1 rounded-lg">📄 記録あり</span>' 
+                  : '<span class="text-[10px] bg-gray-200 text-gray-500 font-medium px-2 py-1 rounded-lg">未入力</span>'}
+              </div>
+            </div>`;
+        });
+      } else {
+        list.innerHTML = '<p class="text-xs text-gray-400 text-center py-4">この日の運行予定・実績はありません。</p>';
+      }
+    }
+
+    function clickRouteDetail(companyName, record) {
+      if (!record) {
+        alert(`「${companyName}」の当日の配送完了報告（写真・メモ）はまだ入力されていません。`);
+        return;
+      }
+      const noteStr = String(record.note);
+      let nouhinText = "なし"; let hikitoriText = "なし";
+      
+      const nMatch = noteStr.match(/__N:([\s\S]*?)(__H:|$)/);
+      if (nMatch && nMatch[1]) nouhinText = nMatch[1].trim() || "なし";
+      
+      const hMatch = noteStr.match(/__H:([\s\S]*)$/);
+      if (hMatch && hMatch[1]) hikitoriText = hMatch[1].trim() || "なし";
+
+      document.getElementById('history-modal-title').innerText = `📊 ${companyName} の運行記録`;
+      document.getElementById('history-nouhin-photo').innerText = record.from === 'MEMO_ATTACHED' ? "📸 写真：撮影・登録済み" : "📸 写真：なし";
+      document.getElementById('history-nouhin-memo').innerText = nouhinText;
+      document.getElementById('history-hikitori-photo').innerText = record.to === 'MEMO_ATTACHED' ? "📸 写真：撮影・登録済み" : "📸 写真：なし";
+      document.getElementById('history-hikitori-memo').innerText = hikitoriText;
+      document.getElementById('history-view-modal').classList.remove('hidden');
+    }
+
+    function closeHistoryViewModal() {
+      document.getElementById('history-view-modal').classList.add('hidden');
+    }
+
+    function renderCompanies() {
+      const list = document.getElementById('companies-list'); list.innerHTML = '';
+      const companies = db.routes.filter(r => !r.note || (!String(r.note).includes('-') && !String(r.note).includes('/')));
+      companies.forEach(c => {
+        list.innerHTML += `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
+            <div>
+              <div class="flex justify-between items-start mb-1">
+                <h4 class="font-bold text-gray-900">${c.name}</h4>
+                <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-600">${c.days || '未指定'}</span>
+              </div>
+              <p class="text-xs text-gray-500">${c.time ? 'デフォルト時刻: ' + c.time : '時刻指定なし'}</p>
+              ${c.note ? `<p class="text-xs bg-yellow-50 text-yellow-700 p-1.5 rounded mt-2 border border-yellow-100">💡 ${c.note}</p>` : ''}
+            </div>
+            <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
+              <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
+              <button onclick="deleteRow('routes', '${c.id}')" class="text-red-500 hover:underline">削除</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    function openCompanyModal(data = null) {
+      document.getElementById('company-modal').classList.remove('hidden');
+      if (data) {
+        document.getElementById('company-modal-title').innerText = '取引先の修正';
+        document.getElementById('c-id').value = data.id; document.getElementById('c-name').value = data.name;
+        document.getElementById('c-time').value = data.time || ''; document.getElementById('c-pattern').value = data.days || '毎営業日';
+        document.getElementById('c-note').value = data.note || '';
+      } else {
+        document.getElementById('company-modal-title').innerText = '取引先の新規登録';
+        document.getElementById('c-id').value = 'M_' + Date.now(); document.getElementById('c-name').value = '';
+        document.getElementById('c-time').value = ''; document.getElementById('c-pattern').value = '毎営業日';
+        document.getElementById('c-note').value = '';
+      }
+    }
+    function closeCompanyModal() { document.getElementById('company-modal').classList.add('hidden'); }
+    function submitCompany() {
+      const id = document.getElementById('c-id').value; const name = document.getElementById('c-name').value;
+      if (!name) { alert('会社名を入力してください'); return; }
+      const rowData = { id: id, name: name, from: '', to: '', time: document.getElementById('c-time').value, vehicleId: '', days: document.getElementById('c-pattern').value, note: document.getElementById('c-note').value };
+      upsertRow('routes', id, rowData); closeCompanyModal();
+    }
+
+    function renderVehicles() {
+      const list = document.getElementById('vehicles-list'); list.innerHTML = '';
+      db.vehicles.forEach(v => {
+        list.innerHTML += `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
+            <div><h4 class="font-bold text-gray-900">${v.name}</h4><p class="text-xs text-gray-400">${v.type || '車種未指定'}</p>
+              <div class="mt-2 space-y-0.5 text-xs text-gray-600"><p>🛠 車検満了: ${v.shaken || '未登録'}</p><p>📄 任意保険: ${v.insurance || '未登録'}</p></div>
+            </div>
+            <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
+              <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
+              <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:underline">削除</button>
+            </div>
+          </div>`;
+      });
+    }
+    function openVehicleModal(data = null) {
+      document.getElementById('vehicle-modal').classList.remove('hidden');
+      if (data) {
+        document.getElementById('v-id').value = data.id; document.getElementById('v-name').value = data.name;
+        document.getElementById('v-type').value = data.type||''; document.getElementById('v-shaken').value = data.shaken||'';
+        document.getElementById('v-insurance').value = data.insurance||''; document.getElementById('v-note').value = data.note||'';
+      } else {
+        document.getElementById('v-id').value = 'V' + Date.now(); document.getElementById('v-name').value = '';
+        document.getElementById('v-type').value = ''; document.getElementById('v-shaken').value = '';
+        document.getElementById('v-insurance').value = ''; document.getElementById('v-note').value = '';
+      }
+    }
+    function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
+    function submitVehicle() {
+      const id = document.getElementById('v-id').value;
+      const rowData = { id: id, name: document.getElementById('v-name').value, type: document.getElementById('v-type').value, shaken: document.getElementById('v-shaken').value, insurance: document.getElementById('v-insurance').value, note: document.getElementById('v-note').value };
+      upsertRow('vehicles', id, rowData); closeVehicleModal();
+    }
+
+    function updateDropdowns() {
+      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
+    }
+    function initCheckFormSelectors() {
+      const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
+      if(yearSel && monthSel) {
+        yearSel.innerHTML = ''; monthSel.innerHTML = '';
+        for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
+        for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
+      }
+    }
+    function renderCheckForm() {
+      const container = document.getElementById('check-form-container'); if(!container) return;
+      container.innerHTML = '';
+      const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
+      categories.forEach(cat => {
+        let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
+        CHECK_ITEMS.filter(i => i.category === cat).forEach(item => {
+          catHtml += `
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-gray-50 text-sm">
+              <span class="text-gray-700">${item.label}</span>
+              <div class="flex gap-1" id="btn-group-${item.key}">
+                <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">○</button>
+                <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">△</button>
+                <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">×</button>
+              </div>
+            </div>`;
+        });
+        container.innerHTML += catHtml + `</div>`;
+      });
+    }
+    let currentMarks = {};
+    function setMark(key, val) {
+      currentMarks[key] = val;
+      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
+      const activeBtn = document.getElementById(`mark-${key}-${val}`);
+      if (activeBtn) {
+        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
+        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
+        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
+      }
+    }
+    function loadCheckData() {
+      const vSel = document.getElementById('check-vehicle'); if(!vSel) return;
+      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
+      CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
+      document.getElementById('check-note').value = ''; if(!vId) return;
+      const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
+      if(records.length > 0) {
+        records.forEach(r => { if(r.itemKey) setMark(r.itemKey, r.value); });
+        document.getElementById('check-note').value = records[0].note || '';
+      }
+    }
+    function saveCheckData() {
+      const vId = document.getElementById('check-vehicle').value; if(!vId) { alert('車両を選択してください'); return; }
+      updateStatus('loading', '点検データを保存中...');
+      sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
+    }
+
+    function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
+    function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
+    function sendPostRequest(payload) {
+      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(() => { setTimeout(loadAllData, 500); })
+      .catch(err => { updateStatus('error', '通信エラー: ' + err.message); });
+    }
+    function updateStatus(type, text) {
+      const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
+      if(txt) txt.innerText = text;
+      if (bar && dot) {
+        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
+        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
+        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
+      }
+    }
+  </script>
+</body>
+</html>
