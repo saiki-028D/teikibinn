@@ -871,4 +871,105 @@
             </div>
             <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
               <button onclick="openVehicleModal(${JSON.stringify(v).replace(/"/g, '&quot;')})" class="text-blue-600 hover:underline">修正</button>
-              <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:
+              <button onclick="deleteRow('vehicles', '${v.id}')" class="text-red-500 hover:underline">削除</button>
+            </div>
+          </div>`;
+      });
+    }
+    function openVehicleModal(data = null) {
+      document.getElementById('vehicle-modal').classList.remove('hidden');
+      if (data) {
+        document.getElementById('v-id').value = data.id; document.getElementById('v-name').value = data.name;
+        document.getElementById('v-type').value = data.type||''; document.getElementById('v-shaken').value = data.shaken||'';
+        document.getElementById('v-insurance').value = data.insurance||''; document.getElementById('v-note').value = data.note||'';
+      } else {
+        document.getElementById('v-id').value = 'V' + Date.now(); document.getElementById('v-name').value = '';
+        document.getElementById('v-type').value = ''; document.getElementById('v-shaken').value = '';
+        document.getElementById('v-insurance').value = ''; document.getElementById('v-note').value = '';
+      }
+    }
+    function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
+    function submitVehicle() {
+      const id = document.getElementById('v-id').value;
+      const rowData = { id: id, name: document.getElementById('v-name').value, type: document.getElementById('v-type').value, shaken: document.getElementById('v-shaken').value, insurance: document.getElementById('v-insurance').value, note: document.getElementById('v-note').value };
+      upsertRow('vehicles', id, rowData); closeVehicleModal();
+    }
+
+    function updateDropdowns() {
+      const cSel = document.getElementById('check-vehicle'); if(cSel) { cSel.innerHTML = ''; db.vehicles.forEach(v => { cSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; }); }
+    }
+    function initCheckFormSelectors() {
+      const yearSel = document.getElementById('check-year'); const monthSel = document.getElementById('check-month');
+      if(yearSel && monthSel) {
+        yearSel.innerHTML = ''; monthSel.innerHTML = '';
+        for (let y = currentYear - 1; y <= currentYear + 1; y++) yearSel.innerHTML += `<option value="${y}" ${y===currentYear?'selected':''}>${y}年</option>`;
+        for (let m = 1; m <= 12; m++) monthSel.innerHTML += `<option value="${m}" ${m===currentMonth?'selected':''}>${m}月</option>`;
+      }
+    }
+    function renderCheckForm() {
+      const container = document.getElementById('check-form-container'); if(!container) return;
+      container.innerHTML = '';
+      const categories = [...new Set(CHECK_ITEMS.map(item => item.category))];
+      categories.forEach(cat => {
+        let catHtml = `<div class="space-y-2"><h3 class="text-xs font-bold text-gray-400 bg-gray-100 px-2 py-1 rounded">${cat}</h3>`;
+        CHECK_ITEMS.filter(i => i.category === cat).forEach(item => {
+          catHtml += `
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between py-1.5 border-b border-gray-50 text-sm">
+              <span class="text-gray-700">${item.label}</span>
+              <div class="flex gap-1" id="btn-group-${item.key}">
+                <button onclick="setMark('${item.key}', '○')" id="mark-${item.key}-○" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">○</button>
+                <button onclick="setMark('${item.key}', '△')" id="mark-${item.key}-△" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">△</button>
+                <button onclick="setMark('${item.key}', '×')" id="mark-${item.key}-×" class="w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400">×</button>
+              </div>
+            </div>`;
+        });
+        container.innerHTML += catHtml + `</div>`;
+      });
+    }
+    let currentMarks = {};
+    function setMark(key, val) {
+      currentMarks[key] = val;
+      ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; });
+      const activeBtn = document.getElementById(`mark-${key}-${val}`);
+      if (activeBtn) {
+        if (val === '○') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-green-600 text-white border-green-600";
+        if (val === '△') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-yellow-500 text-white border-yellow-500";
+        if (val === '×') activeBtn.className = "w-9 h-7 rounded text-xs font-bold bg-red-600 text-white border-red-600";
+      }
+    }
+    function loadCheckData() {
+      const vSel = document.getElementById('check-vehicle'); if(!vSel) return;
+      const vId = vSel.value; const year = document.getElementById('check-year').value; const month = document.getElementById('check-month').value;
+      CHECK_ITEMS.forEach(item => { currentMarks[item.key] = ''; ['○', '△', '×'].forEach(v => { const btn = document.getElementById(`mark-${item.key}-${v}`); if(btn) btn.className = "w-9 h-7 rounded border text-xs font-bold bg-white text-gray-400 border-gray-200"; }); });
+      document.getElementById('check-note').value = ''; if(!vId) return;
+      const records = db.checks.filter(c => c.vehicleId == vId && c.year == year && c.month == month);
+      if(records.length > 0) {
+        records.forEach(r => { if(r.itemKey) setMark(r.itemKey, r.value); });
+        document.getElementById('check-note').value = records[0].note || '';
+      }
+    }
+    function saveCheckData() {
+      const vId = document.getElementById('check-vehicle').value; if(!vId) { alert('車両を選択してください'); return; }
+      updateStatus('loading', '点検データを保存中...');
+      sendPostRequest({ action: 'save_check', sheet: 'checks', vehicleId: vId, year: document.getElementById('check-year').value, month: document.getElementById('check-month').value, marks: currentMarks, note: document.getElementById('check-note').value, savedAt: new Date().toLocaleString('ja-JP') });
+    }
+
+    function upsertRow(sheet, id, rowData) { updateStatus('loading', '送信中...'); sendPostRequest({ action: 'upsert', sheet: sheet, id: id, row: rowData }); }
+    function deleteRow(sheet, id) { if (!confirm('本当に削除しますか？')) return; updateStatus('loading', '削除中...'); sendPostRequest({ action: 'delete', sheet: sheet, id: id }); }
+    function sendPostRequest(payload) {
+      fetch(GAS_URL, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      .then(() => { setTimeout(loadAllData, 500); })
+      .catch(err => { updateStatus('error', '通信エラー: ' + err.message); });
+    }
+    function updateStatus(type, text) {
+      const bar = document.getElementById('status-bar'); const txt = document.getElementById('status-text'); const dot = bar.querySelector('span');
+      if(txt) txt.innerText = text;
+      if (bar && dot) {
+        if (type === 'loading') { bar.className = "bg-yellow-100 text-yellow-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-yellow-500 animate-pulse"; }
+        else if (type === 'success') { bar.className = "bg-green-100 text-green-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-green-500"; }
+        else { bar.className = "bg-red-100 text-red-800 text-center py-2 text-sm font-medium flex items-center justify-center gap-2"; dot.className = "w-3 h-3 rounded-full bg-red-500"; }
+      }
+    }
+  </script>
+</body>
+</html>
