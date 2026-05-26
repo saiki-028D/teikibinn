@@ -525,8 +525,10 @@
     };
 
     function fetchHolidays() {
-      fetch('https://holidays-jp.github.io/api/v1/date.json')
-        .then(r => r.json()).then(d => { holidays = d; }).catch(() => {}).finally(() => loadAllData());
+      // 祝日取得とデータ取得を並列で同時スタート
+      const holidayPromise = fetch('https://holidays-jp.github.io/api/v1/date.json')
+        .then(r => r.json()).then(d => { holidays = d; }).catch(() => {});
+      loadAllData(holidayPromise);
     }
 
     function switchTab(tabId) {
@@ -536,30 +538,37 @@
       document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600';
     }
 
-    function loadAllData() {
+    function loadAllData(holidayPromise) {
       updateStatus('loading', '最新情報を取得中...');
       let loaded = 0;
       const sheets = ['vehicles','routes','checks','delivery_records'];
       const total = sheets.length;
 
+      const onAllLoaded = () => {
+        (holidayPromise || Promise.resolve()).finally(() => {
+          updateStatus('success','スプレッドシートと同期完了');
+          refreshAllViews();
+        });
+      };
+
+      // 全シートを同時並列で取得
       sheets.forEach(sheet => {
         const cb = `callback_${sheet}_${Date.now()}`;
 
-        // タイムアウト：3秒以内に返答なければスキップ
         const timer = setTimeout(() => {
           if (!window[cb + '_done']) {
             window[cb + '_done'] = true;
             db[sheet] = db[sheet] || [];
-            if (++loaded === total) { updateStatus('success','スプレッドシートと同期完了'); refreshAllViews(); }
+            if (++loaded === total) onAllLoaded();
           }
-        }, 3000);
+        }, 5000);
 
         window[cb] = function(res) {
           if (window[cb + '_done']) return;
           window[cb + '_done'] = true;
           clearTimeout(timer);
           db[sheet] = res.data || [];
-          if (++loaded === total) { updateStatus('success','スプレッドシートと同期完了'); refreshAllViews(); }
+          if (++loaded === total) onAllLoaded();
         };
 
         const s = document.createElement('script');
@@ -568,7 +577,7 @@
           window[cb + '_done'] = true;
           clearTimeout(timer);
           db[sheet] = db[sheet] || [];
-          if (++loaded === total) { updateStatus('success','スプレッドシートと同期完了'); refreshAllViews(); }
+          if (++loaded === total) onAllLoaded();
         };
         s.src = `${GAS_URL}?sheet=${sheet}&callback=${cb}&_=${Date.now()}`;
         document.body.appendChild(s);
