@@ -337,6 +337,9 @@
 
   <script>
     const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
+    const CLOUDINARY_CLOUD = 'deshebyn8';
+    const CLOUDINARY_PRESET = 'vehicle_photos';
+    const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
     let db = { vehicles: [], routes: [], checks: [], delivery_records: [] };
     let holidays = {};
     let currentYear, currentMonth;
@@ -389,8 +392,26 @@
     function closeLightbox() { document.getElementById('photo-lightbox').classList.add('hidden'); }
 
     // ════════════════════════════════════════════════════════
-    //  実績モーダル
+    //  Cloudinary アップロード
     // ════════════════════════════════════════════════════════
+    async function uploadToCloudinary(photos) {
+      const urls = [];
+      for (const p of photos) {
+        const formData = new FormData();
+        formData.append('file', p.file);
+        formData.append('upload_preset', CLOUDINARY_PRESET);
+        formData.append('folder', `vehicle_records/${todayStr}`);
+        const r = await fetch(CLOUDINARY_URL, { method: 'POST', body: formData });
+        const d = await r.json();
+        if (d.secure_url) {
+          urls.push(d.secure_url);
+        } else {
+          console.error('Cloudinaryアップロード失敗:', d);
+          throw new Error('アップロード失敗: ' + (d.error?.message || 'unknown'));
+        }
+      }
+      return urls;
+    }
     function openDeliveryModal(companyName) {
       selectedDeliveryCompanyName = companyName;
       document.getElementById('delivery-modal-title').innerText = `📦 ${companyName}`;
@@ -404,7 +425,6 @@
     async function submitDeliveryReport() {
       const nouhinMemo   = document.getElementById('nouhin-memo').value;
       const hikitoriMemo = document.getElementById('hikitori-memo').value;
-      const toBase64Arr  = arr => arr.map(p => ({ base64: p.dataUrl.split(',')[1], mimeType: p.file.type, fileName: p.file.name }));
 
       const btn = document.querySelector('#delivery-modal button[onclick="submitDeliveryReport()"]');
       if (btn) { btn.disabled = true; btn.textContent = '送信中...'; }
@@ -412,37 +432,28 @@
 
       let nouhinUrls = [], hikitoriUrls = [];
 
-      // 写真アップロード
+      // Cloudinaryに直接アップロード
       try {
         if (photoState.nouhin.length) {
-          const r = await fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'upload_photo', photos: toBase64Arr(photoState.nouhin) })
-          });
-          const d = await r.json();
-          console.log('納品写真アップロード結果:', d);
-          nouhinUrls = d.urls || [];
+          updateStatus('loading', `納品写真をアップロード中... (${photoState.nouhin.length}枚)`);
+          nouhinUrls = await uploadToCloudinary(photoState.nouhin);
+          console.log('納品写真URL:', nouhinUrls);
         }
         if (photoState.hikitori.length) {
-          const r = await fetch(GAS_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ action: 'upload_photo', photos: toBase64Arr(photoState.hikitori) })
-          });
-          const d = await r.json();
-          console.log('引取写真アップロード結果:', d);
-          hikitoriUrls = d.urls || [];
+          updateStatus('loading', `引取写真をアップロード中... (${photoState.hikitori.length}枚)`);
+          hikitoriUrls = await uploadToCloudinary(photoState.hikitori);
+          console.log('引取写真URL:', hikitoriUrls);
         }
       } catch(e) {
         console.error('写真アップロードエラー:', e);
-        updateStatus('error', '写真アップロードに失敗しました: ' + e.message);
+        updateStatus('error', '写真アップロードに失敗: ' + e.message);
         if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
         return;
       }
 
-      // レコード保存
+      // スプレッドシートにレコード保存（GAS経由）
       try {
+        updateStatus('loading', 'スプレッドシートに保存中...');
         const r = await fetch(GAS_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
@@ -466,7 +477,7 @@
         setTimeout(loadAllData, 1000);
       } catch(e) {
         console.error('保存エラー:', e);
-        updateStatus('error', '保存に失敗しました: ' + e.message);
+        updateStatus('error', '保存に失敗: ' + e.message);
       } finally {
         if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
       }
@@ -584,14 +595,14 @@
       db.vehicles.forEach(v => {
         if (v.shaken) {
           const days = Math.ceil((new Date(v.shaken) - todayObj) / 86400000);
-          if (days <= 30) {
+          if (days <= 60) {
             count++;
             const cls = days < 0 ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-50 border-orange-200 text-orange-700';
             alerts.innerHTML += `<div class="text-xs p-3 rounded-xl border ${cls} flex justify-between items-center"><span>⚠️ <strong>${v.name}</strong> 車検${days < 0 ? '期限切れ' : `まであと${days}日`}</span><span class="font-bold">${v.shaken}</span></div>`;
           }
         }
       });
-      if (count === 0) alerts.innerHTML = `<div class="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-xl">✅ 車検アラートなし（30日以内の期限切れなし）</div>`;
+      if (count === 0) alerts.innerHTML = `<div class="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-xl">✅ 車検アラートなし（60日以内の期限切れなし）</div>`;
     }
 
     // ════════════════════════════════════════════════════════
@@ -922,19 +933,9 @@
       const nouhinUrls = toUrlArray(rec.nouhinPhotoUrls);
       if (nouhinUrls.length === 0) npGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
       else nouhinUrls.forEach((url, i) => {
-        const viewUrl = url.replace('export=view', 'export=view');
         npGrid.innerHTML += `
-          <div class="flex flex-col items-center gap-1">
-            <img src="${viewUrl}" 
-              class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-              onclick="window.open('${viewUrl}','_blank')">
-            <a href="${viewUrl}" target="_blank" 
-              style="display:none"
-              class="w-20 h-20 rounded-lg border border-blue-200 bg-blue-50 flex-col items-center justify-center text-blue-600 text-xs font-bold hover:bg-blue-100 text-center p-2">
-              📷 写真${i+1}<br>を開く
-            </a>
-          </div>`;
+          <img src="${url}" onclick="openLightbox('${url}')"
+            class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
       });
 
       // 引取写真
@@ -943,19 +944,9 @@
       const hikitoriUrls = toUrlArray(rec.hikitoriPhotoUrls);
       if (hikitoriUrls.length === 0) hpGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
       else hikitoriUrls.forEach((url, i) => {
-        const viewUrl = url.replace('export=view', 'export=view');
         hpGrid.innerHTML += `
-          <div class="flex flex-col items-center gap-1">
-            <img src="${viewUrl}"
-              class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
-              onclick="window.open('${viewUrl}','_blank')">
-            <a href="${viewUrl}" target="_blank"
-              style="display:none"
-              class="w-20 h-20 rounded-lg border border-green-200 bg-green-50 flex-col items-center justify-center text-green-600 text-xs font-bold hover:bg-green-100 text-center p-2">
-              📷 写真${i+1}<br>を開く
-            </a>
-          </div>`;
+          <img src="${url}" onclick="openLightbox('${url}')"
+            class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
       });
 
       document.getElementById('record-viewer-modal').classList.remove('hidden');
