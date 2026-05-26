@@ -874,7 +874,12 @@
           ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">スポット</span>' : '';
 
         // delivery_recordsから該当レコードを取得
-        const rec = (db.delivery_records||[]).find(r => r.date===fd && r.companyName===c.name);
+        // dateがISO形式（2026-05-25T15:00:00.000Z）でも対応できるよう先頭10文字で比較
+        const rec = (db.delivery_records||[]).find(r => {
+          const recDate = r.date ? String(r.date).substring(0, 10) : '';
+          const recName = String(r.companyName||'').trim();
+          return recDate === fd && recName === c.name;
+        });
         const hasRecord = !!rec;
         const recBtn = hasRecord
           ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
