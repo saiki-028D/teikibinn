@@ -490,7 +490,7 @@
       db.vehicles.forEach(v => {
         if (v.shaken) {
           const days = Math.ceil((new Date(v.shaken) - todayObj) / 86400000);
-          if (days <= 30) {
+          if (days <= 60) {
             count++;
             const cls = days < 0 ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-50 border-orange-200 text-orange-700';
             alerts.innerHTML += `<div class="text-xs p-3 rounded-xl border ${cls} flex justify-between items-center"><span>⚠️ <strong>${v.name}</strong> 車検${days < 0 ? '期限切れ' : `まであと${days}日`}</span><span class="font-bold">${v.shaken}</span></div>`;
