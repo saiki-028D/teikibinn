@@ -916,8 +916,20 @@
       npGrid.innerHTML = '';
       const nouhinUrls = toUrlArray(rec.nouhinPhotoUrls);
       if (nouhinUrls.length === 0) npGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
-      else nouhinUrls.forEach(url => {
-        npGrid.innerHTML += `<img src="${url}" onclick="openLightbox('${url}')" class="w-16 h-16 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
+      else nouhinUrls.forEach((url, i) => {
+        const viewUrl = url.replace('export=view', 'export=view');
+        npGrid.innerHTML += `
+          <div class="flex flex-col items-center gap-1">
+            <img src="${viewUrl}" 
+              class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+              onclick="window.open('${viewUrl}','_blank')">
+            <a href="${viewUrl}" target="_blank" 
+              style="display:none"
+              class="w-20 h-20 rounded-lg border border-blue-200 bg-blue-50 flex-col items-center justify-center text-blue-600 text-xs font-bold hover:bg-blue-100 text-center p-2">
+              📷 写真${i+1}<br>を開く
+            </a>
+          </div>`;
       });
 
       // 引取写真
@@ -925,8 +937,20 @@
       hpGrid.innerHTML = '';
       const hikitoriUrls = toUrlArray(rec.hikitoriPhotoUrls);
       if (hikitoriUrls.length === 0) hpGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
-      else hikitoriUrls.forEach(url => {
-        hpGrid.innerHTML += `<img src="${url}" onclick="openLightbox('${url}')" class="w-16 h-16 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
+      else hikitoriUrls.forEach((url, i) => {
+        const viewUrl = url.replace('export=view', 'export=view');
+        hpGrid.innerHTML += `
+          <div class="flex flex-col items-center gap-1">
+            <img src="${viewUrl}"
+              class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80"
+              onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+              onclick="window.open('${viewUrl}','_blank')">
+            <a href="${viewUrl}" target="_blank"
+              style="display:none"
+              class="w-20 h-20 rounded-lg border border-green-200 bg-green-50 flex-col items-center justify-center text-green-600 text-xs font-bold hover:bg-green-100 text-center p-2">
+              📷 写真${i+1}<br>を開く
+            </a>
+          </div>`;
       });
 
       document.getElementById('record-viewer-modal').classList.remove('hidden');
