@@ -629,23 +629,70 @@
       const container = document.getElementById('today-final-list');
       container.innerHTML = '';
       const todaySlash = todayStr.replace(/-/g,'/');
-      const checkedRuns = db.routes.filter(r => {
+
+      // ① 今日GOで確定した運行
+      const confirmedRuns = db.routes.filter(r => {
         if (!r.note || r.days !== 'GO') return false;
         const n = String(r.note).trim();
         return n.includes(todayStr) || n.includes(todaySlash);
       });
-      const filtered = confirmedVehicleFilter === 'all' ? checkedRuns : checkedRuns.filter(r => String(r.vehicleId) === String(confirmedVehicleFilter));
+
+      // ② 定期便（今日の曜日にマッチ・SKIPされていないもの）
+      const masters = db.routes.filter(r => {
+        if (!r.name) return false;
+        if (!r.note) return true;
+        const n = String(r.note).trim();
+        return !(/\d{4}[-\/]\d{2}[-\/]\d{2}/.test(n));
+      });
+      const todayObj2 = new Date(todayStr);
+      const isHol = holidays[todayStr] !== undefined;
+      const isWeekend = todayObj2.getDay() === 0 || todayObj2.getDay() === 6;
+
+      const regularRuns = masters.filter(r => {
+        if (!r.days) return false;
+        // 今日のパターンにマッチするか
+        const match = (r.days === '毎営業日' && !isHol && !isWeekend) ||
+          String(r.days).split(',').map(d => d.trim()).includes(todayDay);
+        if (!match) return false;
+        // SKIPされていないか確認
+        const skipped = db.routes.find(x =>
+          x.name === r.name && x.note &&
+          (String(x.note).includes(todayStr) || String(x.note).includes(todaySlash)) &&
+          x.days === 'SKIP'
+        );
+        return !skipped;
+      });
+
+      // ①と②をマージ（重複除去：会社名が同じならGO確定を優先）
+      const allRuns = [...confirmedRuns];
+      regularRuns.forEach(r => {
+        if (!allRuns.some(x => x.name === r.name)) {
+          allRuns.push({ ...r, _isRegular: true });
+        }
+      });
+
+      // 車両フィルタ
+      const filtered = confirmedVehicleFilter === 'all'
+        ? allRuns
+        : allRuns.filter(r => String(r.vehicleId) === String(confirmedVehicleFilter));
+
       if (filtered.length === 0) {
-        container.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">確定した運行はありません。</p>';
+        container.innerHTML = '<p class="text-sm text-gray-400 text-center py-3">本日の運行予定はありません。</p>';
         return;
       }
+
       filtered.sort((a,b) => (a.time||'').localeCompare(b.time||''));
       filtered.forEach(s => {
         const v = db.vehicles.find(x => String(x.id) === String(s.vehicleId));
+        const isRegular = !!s._isRegular;
+        const badge = isRegular
+          ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">📅 定期</span>'
+          : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 mr-1">✅ 確定</span>';
         container.innerHTML += `
           <div class="flex flex-wrap justify-between items-center gap-2 border-b last:border-0 pb-3 last:pb-0">
             <div>
-              <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-2">${s.time||'時間未定'}</span>
+              ${badge}
+              <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-1">${s.time||'時間未定'}</span>
               <strong class="text-sm text-gray-900">${s.name}</strong>
               <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v?v.name:'車両未定'}</span>
             </div>
