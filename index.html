@@ -897,7 +897,6 @@
 
     // ── 記録閲覧モーダル ──
     function openRecordViewer(fd, companyName, rec) {
-      // recがstring（&quot;エスケープ）でくる場合があるのでparse
       if (typeof rec === 'string') { try { rec = JSON.parse(rec); } catch(e) { rec = {}; } }
 
       document.getElementById('rv-title').innerText    = `📋 ${companyName}`;
@@ -905,10 +904,17 @@
       document.getElementById('rv-nouhin-memo').innerText   = rec.nouhinMemo   || '（なし）';
       document.getElementById('rv-hikitori-memo').innerText = rec.hikitoriMemo || '（なし）';
 
+      // URLはスプレッドシートからカンマ区切り文字列で来る場合がある
+      const toUrlArray = (val) => {
+        if (!val) return [];
+        if (Array.isArray(val)) return val.filter(Boolean);
+        return String(val).split(',').map(s => s.trim()).filter(Boolean);
+      };
+
       // 納品写真
       const npGrid = document.getElementById('rv-nouhin-photos');
       npGrid.innerHTML = '';
-      const nouhinUrls = rec.nouhinPhotoUrls || [];
+      const nouhinUrls = toUrlArray(rec.nouhinPhotoUrls);
       if (nouhinUrls.length === 0) npGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
       else nouhinUrls.forEach(url => {
         npGrid.innerHTML += `<img src="${url}" onclick="openLightbox('${url}')" class="w-16 h-16 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
@@ -917,7 +923,7 @@
       // 引取写真
       const hpGrid = document.getElementById('rv-hikitori-photos');
       hpGrid.innerHTML = '';
-      const hikitoriUrls = rec.hikitoriPhotoUrls || [];
+      const hikitoriUrls = toUrlArray(rec.hikitoriPhotoUrls);
       if (hikitoriUrls.length === 0) hpGrid.innerHTML = '<p class="text-xs text-gray-300">写真なし</p>';
       else hikitoriUrls.forEach(url => {
         hpGrid.innerHTML += `<img src="${url}" onclick="openLightbox('${url}')" class="w-16 h-16 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`;
