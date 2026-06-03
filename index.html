@@ -35,6 +35,7 @@
       <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 text-gray-600 hover:text-blue-600">取引先マスタ</button>
       <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="w-full py-4 text-gray-600 hover:text-blue-600">車両管理</button>
       <button onclick="switchTab('checks')"    id="tab-checks"    class="w-full py-4 text-gray-600 hover:text-blue-600">月次点検</button>
+      <button onclick="switchTab('drivers')"   id="tab-drivers"   class="w-full py-4 text-gray-600 hover:text-blue-600">ドライバー</button>
     </div>
   </nav>
 
@@ -173,6 +174,17 @@
       </div>
       <button onclick="saveCheckData()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition shadow-md">点検結果を保存</button>
     </section>
+
+    <!-- ══════════════════════════════════════
+         ドライバーマスタ（月次点検タブに統合）
+    ══════════════════════════════════════ -->
+    <section id="view-drivers" class="tab-content hidden space-y-4">
+      <div class="flex justify-between items-center">
+        <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">ドライバー管理</h2>
+        <button onclick="openDriverModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 追加</button>
+      </div>
+      <div id="drivers-list" class="grid gap-3 sm:grid-cols-2"></div>
+    </section>
   </main>
 
   <!-- ══ 実績入力モーダル ══ -->
@@ -227,6 +239,32 @@
   <!-- 写真拡大 -->
   <div id="photo-lightbox" class="fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center p-4" onclick="closeLightbox()">
     <img id="lightbox-img" src="" class="max-w-full max-h-full rounded-xl">
+  </div>
+
+  <!-- ══ ドライバーモーダル ══ -->
+  <div id="driver-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white p-6 rounded-2xl w-full max-w-sm space-y-4">
+      <h3 class="text-lg font-bold">ドライバーの登録</h3>
+      <input type="hidden" id="d-id">
+      <div><label class="block text-xs text-gray-500 mb-1">名前</label><input type="text" id="d-name" placeholder="例: 田中 一郎" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-2">担当曜日（複数選択可）</label>
+        <div class="flex gap-2 flex-wrap">
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-mon" value="月" class="accent-blue-600">月</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-tue" value="火" class="accent-blue-600">火</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-wed" value="水" class="accent-blue-600">水</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-thu" value="木" class="accent-blue-600">木</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-fri" value="金" class="accent-blue-600">金</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sat" value="土" class="accent-blue-600">土</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sun" value="日" class="accent-blue-600">日</label>
+        </div>
+      </div>
+      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div class="flex justify-end gap-2 text-sm">
+        <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
+        <button onclick="submitDriver()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
+      </div>
+    </div>
   </div>
 
   <!-- ══ 取引先モーダル ══ -->
@@ -340,7 +378,7 @@
     const CLOUDINARY_CLOUD = 'deshebyn8';
     const CLOUDINARY_PRESET = 'vehicle_photos';
     const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
-    let db = { vehicles: [], routes: [], checks: [], delivery_records: [] };
+    let db = { vehicles: [], routes: [], checks: [], delivery_records: [], drivers: [] };
     let holidays = {};
     let currentYear, currentMonth;
     let selectedDeliveryCompanyName = '';
@@ -541,7 +579,7 @@
     function loadAllData(holidayPromise) {
       updateStatus('loading', '最新情報を取得中...');
       let loaded = 0;
-      const sheets = ['vehicles','routes','checks','delivery_records'];
+      const sheets = ['vehicles','routes','checks','delivery_records','drivers'];
       const total = sheets.length;
 
       const onAllLoaded = () => {
@@ -590,6 +628,7 @@
       renderCalendar();
       renderCompanies();
       renderVehicles();
+      renderDrivers();
       updateDropdowns();
       loadCheckData();
     }
@@ -690,9 +729,23 @@
         return;
       }
 
+      // ドライバーチップ（上部に表示）
+      // 確定運行に紐づくドライバー + 今日の曜日担当ドライバーをマージ
+      const assignedIds = new Set(filtered.map(s => s.driverId).filter(Boolean).map(String));
+      const todayDrvs   = getTodayDrivers();
+      todayDrvs.forEach(d => assignedIds.add(String(d.id)));
+      if (assignedIds.size > 0) {
+        const chips = [...assignedIds].map(did => {
+          const drv = (db.drivers||[]).find(d => String(d.id) === did);
+          return drv ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">👤 ${drv.name}</span>` : '';
+        }).join('');
+        container.innerHTML += `<div class="flex flex-wrap gap-2 pb-3 border-b border-dashed border-gray-200"><span class="text-xs text-gray-400 self-center">本日のドライバー：</span>${chips}</div>`;
+      }
+
       filtered.sort((a,b) => (a.time||'').localeCompare(b.time||''));
       filtered.forEach(s => {
         const v = db.vehicles.find(x => String(x.id) === String(s.vehicleId));
+        const drv = (db.drivers||[]).find(x => String(x.id) === String(s.driverId));
         const isRegular = !!s._isRegular;
         const badge = isRegular
           ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">📅 定期</span>'
@@ -703,7 +756,7 @@
               ${badge}
               <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-1">${s.time||'時間未定'}</span>
               <strong class="text-sm text-gray-900">${s.name}</strong>
-              <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v?v.name:'車両未定'}</span>
+              <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v?v.name:'車両未定'}${drv?' ／ 👤 '+drv.name:''}</span>
             </div>
             <button onclick="openDeliveryModal('${s.name.replace(/'/g,"\\'")}')" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow-sm hover:opacity-90">
               📸 記録
@@ -742,7 +795,8 @@
           else if (!base.days||String(base.days).includes('不定期')) { isTodayPat=true; isChecked=false; }
           else { isTodayPat=false; }
         } else { isTodayPat=true; }
-        const obj = {id:fid, name, time, vehicleId:vid, isChecked, label};
+        const drvId = todayRow?(todayRow.driverId||''):(base?(base.driverId||''):'');
+        const obj = {id:fid, name, time, vehicleId:vid, driverId:drvId, isChecked, label};
         if (isTodayPat) mainItems.push(obj); else otherItems.push(obj);
       });
 
@@ -751,15 +805,21 @@
         db.vehicles.forEach(v => { o += `<option value="${v.id}" ${String(v.id)===String(selId)?'selected':''}>${v.name}</option>`; });
         return o;
       };
+      const dOpts = (selId) => {
+        let o = '<option value="">-- ドライバー --</option>';
+        (db.drivers||[]).forEach(d => { o += `<option value="${d.id}" ${String(d.id)===String(selId)?'selected':''}>${d.name}</option>`; });
+        return o;
+      };
       const rowHtml = (item) => `
         <div class="flex flex-wrap items-center justify-between p-2.5 border rounded-xl gap-2 bg-gray-50/50">
           <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[160px]">
             <input type="checkbox" id="chk-${item.id}" data-name="${item.name}" ${item.isChecked?'checked':''} class="w-4 h-4 text-blue-600 rounded">
             <div><span>${item.name}</span><span class="block text-[10px] text-gray-400 font-normal">${item.label}</span></div>
           </label>
-          <div class="flex items-center gap-2 flex-1 justify-end">
+          <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
             <input type="time" id="time-${item.id}" value="${item.time}" class="border p-1.5 rounded-lg text-xs bg-white w-24">
-            <select id="vec-${item.id}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[140px]">${vOpts(item.vehicleId)}</select>
+            <select id="vec-${item.id}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[120px]">${vOpts(item.vehicleId)}</select>
+            <select id="drv-${item.id}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[120px]">${dOpts(item.driverId)}</select>
           </div>
         </div>`;
 
@@ -787,7 +847,8 @@
         const id = chk.id.replace('chk-','');
         const name = chk.getAttribute('data-name');
         const did  = 'D_'+todayStr+'_'+name.replace(/\s+/g,'');
-        const row  = {id:did, name, from:'', to:'', time:document.getElementById(`time-${id}`).value, vehicleId:document.getElementById(`vec-${id}`).value, days:chk.checked?'GO':'SKIP', note:todayStr};
+        const drvEl = document.getElementById(`drv-${id}`);
+        const row  = {id:did, name, from:'', to:'', time:document.getElementById(`time-${id}`).value, vehicleId:document.getElementById(`vec-${id}`).value, driverId: drvEl ? drvEl.value : '', days:chk.checked?'GO':'SKIP', note:todayStr};
         fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
         .then(()=>{ if(++done===cbs.length) { document.getElementById('today-dispatch-selector-others').classList.add('hidden'); document.getElementById('btn-toggle-others').textContent='＋ スポット便（他曜日の取引先）を表示'; setTimeout(loadAllData,1000); }});
       });
@@ -842,7 +903,7 @@
           // 実績（その日のGO/SKIP）を確認
           const actual = db.routes.find(x => x.name===r.name && x.note && (String(x.note).includes(fd)||String(x.note).includes(fs)));
           if (actual && actual.days==='SKIP') return; // SKIPなら除外
-          companies.push({ name:r.name, vehicleId: actual?actual.vehicleId:(r.vehicleId||''), time: actual?actual.time:(r.time||''), type:'regular', confirmed: !!actual });
+          companies.push({ name:r.name, vehicleId: actual?actual.vehicleId:(r.vehicleId||''), driverId: actual?actual.driverId:(r.driverId||''), time: actual?actual.time:(r.time||''), type:'regular', confirmed: !!actual });
         }
       });
 
@@ -852,7 +913,7 @@
         const n = String(r.note).trim();
         if ((n.includes(fd)||n.includes(fs)) && r.days==='GO') {
           if (!companies.some(c=>c.name===r.name)) {
-            companies.push({ name:r.name, vehicleId:r.vehicleId||'', time:r.time||'', type:'spot', confirmed:true });
+            companies.push({ name:r.name, vehicleId:r.vehicleId||'', driverId:r.driverId||'', time:r.time||'', type:'spot', confirmed:true });
           }
         }
       });
@@ -948,21 +1009,40 @@
           return recDate === fd && recName === c.name;
         });
         const hasRecord = !!rec;
+        const savedAtText = hasRecord && rec.savedAt
+          ? `<span class="text-[10px] text-gray-400">${rec.savedAt}</span>` : '';
         const recBtn = hasRecord
-          ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
-               class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap">
-               📋 記録を見る
-             </button>`
+          ? `<div class="flex flex-col items-end gap-0.5">
+               <button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
+                 class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap">
+                 📋 記録を見る
+               </button>
+               ${savedAtText}
+             </div>`
           : `<span class="text-[10px] text-gray-300 whitespace-nowrap">記録なし</span>`;
 
+        const drvOpts = '<option value="">-- ドライバー --</option>' +
+          (db.drivers||[]).map(d =>
+            `<option value="${d.id}" ${String(d.id)===String(c.driverId)?'selected':''}>${d.name}</option>`
+          ).join('');
+        const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g,'');
+
         list.innerHTML += `
-          <div class="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg gap-2">
-            <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-              ${badge}${typeBadge}
-              <span class="font-bold text-gray-800 text-sm">${c.name}</span>
-              <span class="text-xs text-gray-400">${c.time||'時間未定'} / ${v?v.name:'車両未定'}</span>
+          <div class="p-2.5 bg-gray-50 rounded-lg space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
+                ${badge}${typeBadge}
+                <span class="font-bold text-gray-800 text-sm">${c.name}</span>
+                <span class="text-xs text-gray-400">${c.time||'時間未定'} / ${v?v.name:'車両未定'}</span>
+              </div>
+              ${recBtn}
             </div>
-            ${recBtn}
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-400 whitespace-nowrap">👤 ドライバー：</span>
+              <select id="${calDrvId}"
+                onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
+                class="flex-1 border p-1.5 rounded-lg text-xs bg-white">${drvOpts}</select>
+            </div>
           </div>`;
       });
     }
@@ -1065,7 +1145,107 @@
       });
     }
 
+    // カレンダーからドライバーを直接変更
+    function updateCalendarDriver(fd, companyName, vehicleId, driverId) {
+      const id  = 'D_' + fd + '_' + companyName.replace(/\s+/g, '');
+      const row = { id, name: companyName, from:'', to:'', time:'', vehicleId, driverId, days:'GO', note: fd };
+      updateStatus('loading', 'ドライバーを変更中...');
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', sheet: 'routes', id, row })
+      }).then(() => {
+        setTimeout(() => {
+          loadAllData();
+          updateStatus('success', 'ドライバーを変更しました');
+          // 詳細パネルを再表示
+          setTimeout(() => {
+            const d = new Date(fd);
+            if (d.getMonth()+1 === currentMonth && d.getFullYear() === currentYear) {
+              showCalendarDetail(d.getDate());
+            }
+          }, 1200);
+        }, 800);
+      });
+    }
+
     function closeRecordViewer() { document.getElementById('record-viewer-modal').classList.add('hidden'); }
+
+    // ════════════════════════════════════════════════════════
+    //  ドライバー管理
+    // ════════════════════════════════════════════════════════
+    function renderDrivers() {
+      const list = document.getElementById('drivers-list');
+      if (!list) return;
+      list.innerHTML = '';
+      if ((db.drivers||[]).length === 0) {
+        list.innerHTML = '<p class="text-sm text-gray-400 col-span-2 text-center py-8">ドライバーが登録されていません</p>';
+        return;
+      }
+      db.drivers.forEach(d => {
+        const days = ['月','火','水','木','金','土','日'].filter(day => d[day]==='✓');
+        const dayBadges = days.map(day =>
+          `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">${day}</span>`
+        ).join('');
+        list.innerHTML += `
+          <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div class="flex justify-between items-start">
+              <div>
+                <p class="font-bold text-gray-900">👤 ${d.name}</p>
+                ${days.length > 0 ? `<div class="flex gap-1 mt-1 flex-wrap">${dayBadges}</div>` : '<p class="text-xs text-gray-300 mt-1">曜日未設定</p>'}
+                ${d.note ? `<p class="text-xs text-gray-400 mt-1">${d.note}</p>` : ''}
+              </div>
+              <div class="flex gap-3 text-xs">
+                <button onclick="openDriverModal(${JSON.stringify(d).replace(/"/g,'&quot;')})" class="text-blue-600 hover:underline">修正</button>
+                <button onclick="deleteRow('drivers','${d.id}')" class="text-red-500 hover:underline">削除</button>
+              </div>
+            </div>
+          </div>`;
+      });
+    }
+
+    const DAY_INPUTS = [
+      {id:'d-mon', key:'月'},{id:'d-tue', key:'火'},{id:'d-wed', key:'水'},
+      {id:'d-thu', key:'木'},{id:'d-fri', key:'金'},{id:'d-sat', key:'土'},{id:'d-sun', key:'日'}
+    ];
+
+    function openDriverModal(data=null) {
+      document.getElementById('driver-modal').classList.remove('hidden');
+      DAY_INPUTS.forEach(d => { document.getElementById(d.id).checked = false; });
+      if (data) {
+        document.getElementById('d-id').value   = data.id;
+        document.getElementById('d-name').value = data.name;
+        document.getElementById('d-note').value = data.note||'';
+        DAY_INPUTS.forEach(d => {
+          if (data[d.key] === '✓') document.getElementById(d.id).checked = true;
+        });
+      } else {
+        document.getElementById('d-id').value   = 'DRV'+Date.now();
+        document.getElementById('d-name').value = '';
+        document.getElementById('d-note').value = '';
+      }
+    }
+    function closeDriverModal() { document.getElementById('driver-modal').classList.add('hidden'); }
+    function submitDriver() {
+      const id   = document.getElementById('d-id').value;
+      const name = document.getElementById('d-name').value.trim();
+      if (!name) { alert('名前を入力してください'); return; }
+      const row = { id, name, note: document.getElementById('d-note').value };
+      DAY_INPUTS.forEach(d => { row[d.key] = document.getElementById(d.id).checked ? '✓' : ''; });
+      upsertRow('drivers', id, row);
+      closeDriverModal();
+    }
+
+    // 今日の曜日に担当するドライバーを取得
+    function getTodayDrivers() {
+      return (db.drivers||[]).filter(d => d[todayDay] === '✓');
+    }
+
+    // 指定日の曜日に担当するドライバーを取得
+    function getDriversForDate(dateObj) {
+      const dow = ['日','月','火','水','木','金','土'][dateObj.getDay()];
+      return (db.drivers||[]).filter(d => d[dow] === '✓');
+    }
 
     // ════════════════════════════════════════════════════════
     //  取引先マスタ（定期／不定期 左右）
