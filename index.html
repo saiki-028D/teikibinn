@@ -290,6 +290,12 @@
           <option value="不定期・かんばん次第">不定期・かんばん次第</option>
         </select>
       </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">デフォルト車両</label>
+        <select id="c-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+          <option value="">-- 選択 --</option>
+        </select>
+      </div>
       <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded-lg text-sm"></div>
       <div class="flex justify-end gap-2 text-sm">
         <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
@@ -790,7 +796,8 @@
         const base     = db.routes.find(r => r.name===name && (!r.note||(!String(r.note).includes('-')&&!String(r.note).includes('/'))));
         const todayRow = todayRecs.find(s => s.name===name);
         let isChecked = false, time = todayRow?(todayRow.time||''):(base?(base.time||''):'');
-        let vid = todayRow?(todayRow.vehicleId||''):(base?(base.vehicleId||''):'');
+        let vid = (todayRow&&todayRow.vehicleId) ? todayRow.vehicleId
+          : (base ? (base.defaultVehicleId||base.vehicleId||'') : '');
         let label = base?`パターン: ${base.days||'未設定'}`:'直入力';
         let isTodayPat = false;
         const fid = 'ROW_'+name.replace(/\s+/g,'');
@@ -897,7 +904,12 @@
 
     function getScheduledCompaniesForDate(dateObj) {
       // 定期便マスタ（noteなし or note非日付）
-      const masters = db.routes.filter(r => !r.note||((!String(r.note).includes('-'))&&(!String(r.note).includes('/'))));
+      const masters = db.routes.filter(r => {
+        if (!r.name) return false;
+        if (!r.note) return true;
+        const n = String(r.note).trim();
+        return !(/\d{4}[-\/]\d{2}[-\/]\d{2}/.test(n));
+      });
       const dow = DAY_MAP[dateObj.getDay()];
       const fd  = `${dateObj.getFullYear()}-${String(dateObj.getMonth()+1).padStart(2,'0')}-${String(dateObj.getDate()).padStart(2,'0')}`;
       const fs  = fd.replace(/-/g,'/');
@@ -914,8 +926,9 @@
           // 実績（その日のGO/SKIP）を確認
           const actual = db.routes.find(x => x.name===r.name && x.note && (String(x.note).includes(fd)||String(x.note).includes(fs)));
           if (actual && actual.days==='SKIP') return; // SKIPなら除外
-          // 車両に紐づくドライバーを自動セット（当日上書きがなければマスタから）
-          const assignedVehicleId = actual?actual.vehicleId:(r.vehicleId||'');
+          // 車両に紐づくドライバーを自動セット（defaultVehicleId優先）
+          const assignedVehicleId = (actual&&actual.vehicleId) ? actual.vehicleId
+            : (r.defaultVehicleId||r.vehicleId||'');
           const dow2 = ['日','月','火','水','木','金','土'][dateObj.getDay()];
           const autoDriver = (db.drivers||[]).find(drv =>
             String(drv.vehicleId) === String(assignedVehicleId) && drv[dow2] === '✓'
@@ -1046,21 +1059,27 @@
           ).join('');
         const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g,'');
 
+        const drv = (db.drivers||[]).find(x => String(x.id) === String(c.driverId));
+
         list.innerHTML += `
-          <div class="p-2.5 bg-gray-50 rounded-lg space-y-2">
-            <div class="flex items-center justify-between gap-2">
+          <div class="p-2.5 bg-gray-50 rounded-lg space-y-1.5">
+            <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
                 ${badge}${typeBadge}
                 <span class="font-bold text-gray-800 text-sm">${c.name}</span>
                 <span class="text-xs text-gray-400">${c.time||'時間未定'} / ${v?v.name:'車両未定'}</span>
+                ${savedAtText ? `<span class="text-[10px] text-gray-400">📝 ${rec.savedAt}</span>` : ''}
               </div>
-              ${recBtn}
+              ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
+                class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
+                📋 記録を見る
+              </button>` : `<span class="text-[10px] text-gray-300 whitespace-nowrap shrink-0">記録なし</span>`}
             </div>
             <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-400 whitespace-nowrap">👤 ドライバー：</span>
+              <span class="text-xs text-gray-400 whitespace-nowrap">👤</span>
               <select id="${calDrvId}"
                 onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
-                class="flex-1 border p-1.5 rounded-lg text-xs bg-white">${drvOpts}</select>
+                class="w-36 border p-1.5 rounded-lg text-xs bg-white">${drvOpts}</select>
             </div>
           </div>`;
       });
@@ -1305,6 +1324,7 @@
             <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g,'&quot;')})" class="text-blue-500 hover:underline shrink-0">修正</button>
           </div>
           <span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">${c.days||'未設定'}</span>
+          ${(()=>{const dv=db.vehicles.find(v=>String(v.id)===String(c.defaultVehicleId));return dv?`<p class="text-xs text-blue-600">🚛 ${dv.name}</p>`:''})()}
           ${c.time?`<p class="text-gray-500">⏰ ${c.time}</p>`:''}
           ${c.note?`<p class="text-gray-400 bg-yellow-50 px-2 py-1 rounded border border-yellow-100">💡 ${c.note}</p>`:''}
           <div class="text-right pt-1"><button onclick="deleteRow('routes','${c.id}')" class="text-red-400 hover:underline text-[10px]">削除</button></div>
@@ -1318,21 +1338,33 @@
 
     function openCompanyModal(data=null) {
       document.getElementById('company-modal').classList.remove('hidden');
+      // 車両セレクトを更新
+      const cVSel = document.getElementById('c-vehicle');
+      cVSel.innerHTML = '<option value="">-- 選択 --</option>';
+      db.vehicles.forEach(v => { cVSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
       if (data) {
         document.getElementById('company-modal-title').innerText='取引先の修正';
-        document.getElementById('c-id').value=data.id; document.getElementById('c-name').value=data.name;
-        document.getElementById('c-time').value=data.time||''; document.getElementById('c-pattern').value=data.days||'毎営業日'; document.getElementById('c-note').value=data.note||'';
+        document.getElementById('c-id').value=data.id;
+        document.getElementById('c-name').value=data.name;
+        document.getElementById('c-time').value=data.time||'';
+        document.getElementById('c-pattern').value=data.days||'毎営業日';
+        document.getElementById('c-note').value=data.note||'';
+        document.getElementById('c-vehicle').value=data.defaultVehicleId||'';
       } else {
         document.getElementById('company-modal-title').innerText='取引先の新規登録';
-        document.getElementById('c-id').value='M_'+Date.now(); document.getElementById('c-name').value='';
-        document.getElementById('c-time').value=''; document.getElementById('c-pattern').value='毎営業日'; document.getElementById('c-note').value='';
+        document.getElementById('c-id').value='M_'+Date.now();
+        document.getElementById('c-name').value='';
+        document.getElementById('c-time').value='';
+        document.getElementById('c-pattern').value='毎営業日';
+        document.getElementById('c-note').value='';
+        document.getElementById('c-vehicle').value='';
       }
     }
     function closeCompanyModal() { document.getElementById('company-modal').classList.add('hidden'); }
     function submitCompany() {
       const id=document.getElementById('c-id').value, name=document.getElementById('c-name').value;
       if (!name) { alert('会社名を入力してください'); return; }
-      upsertRow('routes',id,{id,name,from:'',to:'',time:document.getElementById('c-time').value,vehicleId:'',days:document.getElementById('c-pattern').value,note:document.getElementById('c-note').value});
+      upsertRow('routes',id,{id,name,from:'',to:'',time:document.getElementById('c-time').value,vehicleId:'',defaultVehicleId:document.getElementById('c-vehicle').value,days:document.getElementById('c-pattern').value,note:document.getElementById('c-note').value});
       closeCompanyModal();
     }
 
