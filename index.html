@@ -259,6 +259,12 @@
           <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sun" value="日" class="accent-blue-600">日</label>
         </div>
       </div>
+      <div>
+        <label class="block text-xs text-gray-500 mb-1">担当車両</label>
+        <select id="d-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+          <option value="">-- 選択 --</option>
+        </select>
+      </div>
       <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded-lg text-sm"></div>
       <div class="flex justify-end gap-2 text-sm">
         <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
@@ -795,7 +801,12 @@
           else if (!base.days||String(base.days).includes('不定期')) { isTodayPat=true; isChecked=false; }
           else { isTodayPat=false; }
         } else { isTodayPat=true; }
-        const drvId = todayRow?(todayRow.driverId||''):(base?(base.driverId||''):'');
+        // 車両に紐づくドライバーを自動セット
+        const autoDrv = (db.drivers||[]).find(d =>
+          String(d.vehicleId) === String(vid) && d[todayDay] === '✓'
+        );
+        const drvId = (todayRow&&todayRow.driverId) ? todayRow.driverId
+          : (autoDrv ? autoDrv.id : (base?(base.driverId||''):''));
         const obj = {id:fid, name, time, vehicleId:vid, driverId:drvId, isChecked, label};
         if (isTodayPat) mainItems.push(obj); else otherItems.push(obj);
       });
@@ -903,7 +914,15 @@
           // 実績（その日のGO/SKIP）を確認
           const actual = db.routes.find(x => x.name===r.name && x.note && (String(x.note).includes(fd)||String(x.note).includes(fs)));
           if (actual && actual.days==='SKIP') return; // SKIPなら除外
-          companies.push({ name:r.name, vehicleId: actual?actual.vehicleId:(r.vehicleId||''), driverId: actual?actual.driverId:(r.driverId||''), time: actual?actual.time:(r.time||''), type:'regular', confirmed: !!actual });
+          // 車両に紐づくドライバーを自動セット（当日上書きがなければマスタから）
+          const assignedVehicleId = actual?actual.vehicleId:(r.vehicleId||'');
+          const dow2 = ['日','月','火','水','木','金','土'][dateObj.getDay()];
+          const autoDriver = (db.drivers||[]).find(drv =>
+            String(drv.vehicleId) === String(assignedVehicleId) && drv[dow2] === '✓'
+          );
+          const resolvedDriverId = (actual&&actual.driverId) ? actual.driverId
+            : (autoDriver ? autoDriver.id : (r.driverId||''));
+          companies.push({ name:r.name, vehicleId: assignedVehicleId, driverId: resolvedDriverId, time: actual?actual.time:(r.time||''), type:'regular', confirmed: !!actual });
         }
       });
 
@@ -1187,11 +1206,13 @@
         const dayBadges = days.map(day =>
           `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">${day}</span>`
         ).join('');
+        const veh = db.vehicles.find(v => String(v.id) === String(d.vehicleId));
         list.innerHTML += `
           <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
             <div class="flex justify-between items-start">
-              <div>
+              <div class="flex-1 min-w-0">
                 <p class="font-bold text-gray-900">👤 ${d.name}</p>
+                ${veh ? `<p class="text-xs text-blue-600 mt-0.5">🚛 ${veh.name}</p>` : '<p class="text-xs text-gray-300 mt-0.5">車両未設定</p>'}
                 ${days.length > 0 ? `<div class="flex gap-1 mt-1 flex-wrap">${dayBadges}</div>` : '<p class="text-xs text-gray-300 mt-1">曜日未設定</p>'}
                 ${d.note ? `<p class="text-xs text-gray-400 mt-1">${d.note}</p>` : ''}
               </div>
@@ -1212,17 +1233,23 @@
     function openDriverModal(data=null) {
       document.getElementById('driver-modal').classList.remove('hidden');
       DAY_INPUTS.forEach(d => { document.getElementById(d.id).checked = false; });
+      // 車両セレクトを更新
+      const vSel = document.getElementById('d-vehicle');
+      vSel.innerHTML = '<option value="">-- 選択 --</option>';
+      db.vehicles.forEach(v => { vSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
       if (data) {
-        document.getElementById('d-id').value   = data.id;
-        document.getElementById('d-name').value = data.name;
-        document.getElementById('d-note').value = data.note||'';
+        document.getElementById('d-id').value      = data.id;
+        document.getElementById('d-name').value    = data.name;
+        document.getElementById('d-note').value    = data.note||'';
+        document.getElementById('d-vehicle').value = data.vehicleId||'';
         DAY_INPUTS.forEach(d => {
           if (data[d.key] === '✓') document.getElementById(d.id).checked = true;
         });
       } else {
-        document.getElementById('d-id').value   = 'DRV'+Date.now();
-        document.getElementById('d-name').value = '';
-        document.getElementById('d-note').value = '';
+        document.getElementById('d-id').value      = 'DRV'+Date.now();
+        document.getElementById('d-name').value    = '';
+        document.getElementById('d-note').value    = '';
+        document.getElementById('d-vehicle').value = '';
       }
     }
     function closeDriverModal() { document.getElementById('driver-modal').classList.add('hidden'); }
@@ -1230,21 +1257,25 @@
       const id   = document.getElementById('d-id').value;
       const name = document.getElementById('d-name').value.trim();
       if (!name) { alert('名前を入力してください'); return; }
-      const row = { id, name, note: document.getElementById('d-note').value };
+      const row = {
+        id, name,
+        note:      document.getElementById('d-note').value,
+        vehicleId: document.getElementById('d-vehicle').value
+      };
       DAY_INPUTS.forEach(d => { row[d.key] = document.getElementById(d.id).checked ? '✓' : ''; });
       upsertRow('drivers', id, row);
       closeDriverModal();
     }
 
-    // 今日の曜日に担当するドライバーを取得
+    // 今日の曜日に担当するドライバーを取得（車両に紐づく）
     function getTodayDrivers() {
-      return (db.drivers||[]).filter(d => d[todayDay] === '✓');
+      return (db.drivers||[]).filter(d => d[todayDay] === '✓' && d.vehicleId);
     }
 
     // 指定日の曜日に担当するドライバーを取得
     function getDriversForDate(dateObj) {
       const dow = ['日','月','火','水','木','金','土'][dateObj.getDay()];
-      return (db.drivers||[]).filter(d => d[dow] === '✓');
+      return (db.drivers||[]).filter(d => d[dow] === '✓' && d.vehicleId);
     }
 
     // ════════════════════════════════════════════════════════
