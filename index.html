@@ -102,14 +102,7 @@
           <button onclick="changeMonth(1)"  class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
         </div>
         <!-- 車両フィルタ -->
-        <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
-        <!-- 会社名フィルタ -->
-        <div class="mb-3">
-          <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
-            class="w-full border p-2 rounded-lg text-sm bg-gray-50">
-            <option value="">すべての会社</option>
-          </select>
-        </div>
+        <div class="vtab-bar mb-3" id="cal-vtab-bar"></div>
         <!-- 曜日ヘッダー -->
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-400 mb-1">
           <div class="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-400">土</div>
@@ -403,7 +396,6 @@
     let selectedDeliveryCompanyName = '';
     let confirmedVehicleFilter = 'all'; // 確定スケジュールの車両フィルタ
     let calVehicleFilter = 'all';        // カレンダーの車両フィルタ
-    let calCompanyFilter = '';           // カレンダーの会社フィルタ
     const todayObj = new Date();
     const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
     const todayDay = ['日','月','火','水','木','金','土'][todayObj.getDay()];
@@ -904,22 +896,6 @@
         btn.onclick = () => { calVehicleFilter=v.id; buildCalVtabs(); renderCalendar(); };
         bar.appendChild(btn);
       });
-
-      // 会社名セレクトを更新
-      const cSel = document.getElementById('cal-company-filter');
-      if (cSel) {
-        const current = cSel.value;
-        cSel.innerHTML = '<option value="">すべての会社</option>';
-        const masters = db.routes.filter(r => {
-          if (!r.name) return false;
-          if (!r.note) return true;
-          return !(/\d{4}[-\/]\d{2}[-\/]\d{2}/.test(String(r.note)));
-        });
-        [...new Set(masters.map(r => r.name))].sort().forEach(name => {
-          cSel.innerHTML += `<option value="${name}" ${name===current?'selected':''}>${name}</option>`;
-        });
-        calCompanyFilter = cSel.value;
-      }
     }
 
     function changeMonth(diff) {
@@ -1007,10 +983,6 @@
         if (calVehicleFilter !== 'all') {
           companies = companies.filter(c => String(c.vehicleId)===String(calVehicleFilter));
         }
-        // 会社フィルタ
-        if (calCompanyFilter) {
-          companies = companies.filter(c => c.name === calCompanyFilter);
-        }
 
         // 確定件数・定期件数
         const confirmedCount = companies.filter(c=>c.confirmed).length;
@@ -1053,7 +1025,6 @@
       const dObj = new Date(currentYear, currentMonth-1, date);
       let companies = getScheduledCompaniesForDate(dObj);
       if (calVehicleFilter!=='all') companies = companies.filter(c=>String(c.vehicleId)===String(calVehicleFilter));
-      if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
 
       const list = document.getElementById('calendar-detail-list');
       list.innerHTML = '';
