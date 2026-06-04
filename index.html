@@ -101,8 +101,6 @@
           <span id="calendar-month-title" class="text-lg font-bold"></span>
           <button onclick="changeMonth(1)"  class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
         </div>
-        <!-- 車両フィルタ -->
-        <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
         <!-- 会社名フィルタ -->
         <div class="mb-3">
           <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
@@ -110,6 +108,8 @@
             <option value="">すべての会社</option>
           </select>
         </div>
+        <!-- 車両フィルタ -->
+        <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
         <!-- 曜日ヘッダー -->
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-400 mb-1">
           <div class="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-400">土</div>
