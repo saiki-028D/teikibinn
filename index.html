@@ -744,8 +744,14 @@
       // ドライバーチップ（上部に表示）
       // 確定運行に紐づくドライバー + 今日の曜日担当ドライバーをマージ
       const assignedIds = new Set(filtered.map(s => s.driverId).filter(Boolean).map(String));
-      const todayDrvs   = getTodayDrivers();
-      todayDrvs.forEach(d => assignedIds.add(String(d.id)));
+      // 「すべて」の場合は今日の全担当ドライバーも追加、車両選択時はその車両担当のみ
+      if (confirmedVehicleFilter === 'all') {
+        getTodayDrivers().forEach(d => assignedIds.add(String(d.id)));
+      } else {
+        getTodayDrivers()
+          .filter(d => String(d.vehicleId) === String(confirmedVehicleFilter))
+          .forEach(d => assignedIds.add(String(d.id)));
+      }
       if (assignedIds.size > 0) {
         const chips = [...assignedIds].map(did => {
           const drv = (db.drivers||[]).find(d => String(d.id) === did);
@@ -1062,25 +1068,18 @@
         const drv = (db.drivers||[]).find(x => String(x.id) === String(c.driverId));
 
         list.innerHTML += `
-          <div class="p-2.5 bg-gray-50 rounded-lg space-y-1.5">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-center gap-2 flex-wrap flex-1 min-w-0">
-                ${badge}${typeBadge}
-                <span class="font-bold text-gray-800 text-sm">${c.name}</span>
-                <span class="text-xs text-gray-400">${c.time||'時間未定'} / ${v?v.name:'車両未定'}</span>
-                ${savedAtText ? `<span class="text-[10px] text-gray-400">📝 ${rec.savedAt}</span>` : ''}
-              </div>
-              ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
-                class="text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
-                📋 記録を見る
-              </button>` : `<span class="text-[10px] text-gray-300 whitespace-nowrap shrink-0">記録なし</span>`}
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-gray-400 whitespace-nowrap">👤</span>
-              <select id="${calDrvId}"
-                onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
-                class="w-36 border p-1.5 rounded-lg text-xs bg-white">${drvOpts}</select>
-            </div>
+          <div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg flex-wrap">
+            <div class="shrink-0">${badge}${typeBadge}</div>
+            <span class="font-bold text-gray-800 text-sm shrink-0">${c.name}</span>
+            <span class="text-xs text-gray-500 shrink-0">🚛 ${v?v.name:'未定'}</span>
+            <select id="${calDrvId}"
+              onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
+              class="w-28 border p-1 rounded-lg text-xs bg-white shrink-0">${drvOpts}</select>
+            ${hasRecord && rec.savedAt ? `<span class="text-[10px] text-gray-400 shrink-0">📝 ${rec.savedAt}</span>` : '<span class="text-[10px] text-gray-300 shrink-0">未記録</span>'}
+            ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
+              class="ml-auto text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
+              📋 記録を見る
+            </button>` : ''}
           </div>`;
       });
     }
