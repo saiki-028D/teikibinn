@@ -1068,17 +1068,17 @@
         const drv = (db.drivers||[]).find(x => String(x.id) === String(c.driverId));
 
         list.innerHTML += `
-          <div class="flex items-center gap-2 p-2.5 bg-gray-50 rounded-lg flex-wrap">
-            <div class="shrink-0">${badge}${typeBadge}</div>
-            <span class="font-bold text-gray-800 text-sm shrink-0">${c.name}</span>
-            <span class="text-xs text-gray-500 shrink-0">🚛 ${v?v.name:'未定'}</span>
+          <div class="flex items-center gap-1.5 p-2.5 bg-gray-50 rounded-lg overflow-x-auto">
+            ${badge}${typeBadge}
+            <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
+            <span class="text-[11px] text-gray-500 shrink-0">🚛${v?v.name:'未定'}</span>
             <select id="${calDrvId}"
               onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
-              class="w-28 border p-1 rounded-lg text-xs bg-white shrink-0">${drvOpts}</select>
-            ${hasRecord && rec.savedAt ? `<span class="text-[10px] text-gray-400 shrink-0">📝 ${rec.savedAt}</span>` : '<span class="text-[10px] text-gray-300 shrink-0">未記録</span>'}
+              class="w-24 border p-1 rounded-lg text-[11px] bg-white shrink-0">${drvOpts}</select>
+            <span class="text-[10px] text-gray-400 shrink-0">${hasRecord && rec.savedAt ? '📝'+rec.savedAt : '未記録'}</span>
             ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
-              class="ml-auto text-[11px] font-bold px-2.5 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
-              📋 記録を見る
+              class="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
+              📋記録
             </button>` : ''}
           </div>`;
       });
