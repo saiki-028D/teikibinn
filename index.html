@@ -101,15 +101,15 @@
           <span id="calendar-month-title" class="text-lg font-bold"></span>
           <button onclick="changeMonth(1)"  class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
         </div>
+        <!-- 車両フィルタ -->
+        <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
         <!-- 会社名フィルタ -->
         <div class="mb-3">
           <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
-            class="w-1/2 border p-2 rounded-lg text-sm bg-gray-50">
+            class="w-full border p-2 rounded-lg text-sm bg-gray-50">
             <option value="">すべての会社</option>
           </select>
         </div>
-        <!-- 車両フィルタ -->
-        <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
         <!-- 曜日ヘッダー -->
         <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-400 mb-1">
           <div class="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-400">土</div>
@@ -404,6 +404,23 @@
     let confirmedVehicleFilter = 'all'; // 確定スケジュールの車両フィルタ
     let calVehicleFilter = 'all';        // カレンダーの車両フィルタ
     let calCompanyFilter = '';           // カレンダーの会社フィルタ
+
+    // 車両カラーパレット（インデックスベースで自動割当）
+    const VEHICLE_COLORS = [
+      { bg: '#dbeafe', text: '#1e40af', dot: '#3b82f6' },  // 青
+      { bg: '#dcfce7', text: '#166534', dot: '#22c55e' },  // 緑
+      { bg: '#fef9c3', text: '#854d0e', dot: '#eab308' },  // 黄
+      { bg: '#ffe4e6', text: '#9f1239', dot: '#f43f5e' },  // ピンク
+      { bg: '#ede9fe', text: '#5b21b6', dot: '#8b5cf6' },  // 紫
+      { bg: '#ffedd5', text: '#9a3412', dot: '#f97316' },  // オレンジ
+      { bg: '#f0fdf4', text: '#065f46', dot: '#10b981' },  // 青緑
+    ];
+
+    function getVehicleColor(vehicleId) {
+      if (!vehicleId) return { bg: '#f3f4f6', text: '#6b7280', dot: '#9ca3af' };
+      const idx = (db.vehicles||[]).findIndex(v => String(v.id) === String(vehicleId));
+      return VEHICLE_COLORS[Math.max(0, idx) % VEHICLE_COLORS.length];
+    }
     const todayObj = new Date();
     const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth()+1).padStart(2,'0')}-${String(todayObj.getDate()).padStart(2,'0')}`;
     const todayDay = ['日','月','火','水','木','金','土'][todayObj.getDay()];
@@ -1022,21 +1039,41 @@
         else if (isHol||dow===0) { bgCls='bg-red-50'; numCls='text-red-400'; }
         else if (dow===6)        { bgCls='bg-sky-50'; numCls='text-sky-500'; }
 
-        // ドット: 確定=緑、定期(未確定)=グレー  ※今日セルは白系
-        const dotHtml = totalCount > 0
-          ? `<div class="flex gap-0.5 justify-center flex-wrap">${companies.slice(0,5).map(c=>
-              `<span class="w-1.5 h-1.5 rounded-full inline-block ${c.confirmed ? (isToday?'bg-white':'bg-emerald-500') : (isToday?'bg-orange-200':'bg-gray-300')}"></span>`
-            ).join('')}</div>` : '';
+        // 会社フィルタ or 車両フィルタ選択時 → 会社名テキスト表示
+        const isFiltered = calCompanyFilter || calVehicleFilter !== 'all';
 
-        const countBadge = totalCount > 0
-          ? `<span class="text-[9px] ${isToday?'text-orange-100':'text-gray-400'}">${confirmedCount}/${totalCount}</span>` : '';
+        let cellBody = '';
+        if (totalCount === 0) {
+          cellBody = '<span class="text-[9px] text-gray-200">-</span>';
+        } else if (isFiltered) {
+          // フィルタ中: 会社名リスト表示（最大3件、車両色付き）
+          const nameList = companies.slice(0, 3).map(c => {
+            const col = getVehicleColor(c.vehicleId);
+            if (isToday) {
+              return `<span class="text-[9px] leading-tight text-white truncate w-full text-center block">${c.name}</span>`;
+            }
+            return `<span class="text-[9px] leading-tight truncate w-full text-center block rounded px-0.5"
+              style="background:${col.bg};color:${col.text}">${c.name}</span>`;
+          }).join('');
+          const more = companies.length > 3
+            ? `<span class="text-[8px] ${isToday?'text-orange-100':'text-gray-400'}">+${companies.length-3}</span>` : '';
+          cellBody = `<div class="w-full flex flex-col items-center gap-0.5">${nameList}${more}</div>`;
+        } else {
+          // 通常: ドット表示（車両色）
+          const dotHtml = `<div class="flex gap-0.5 justify-center flex-wrap">${companies.slice(0,5).map(c=>{
+            const col = getVehicleColor(c.vehicleId);
+            const dotColor = isToday ? (c.confirmed?'#fff':'rgba(255,255,255,0.4)') : (c.confirmed ? col.dot : '#d1d5db');
+            return `<span class="w-1.5 h-1.5 rounded-full inline-block" style="background:${dotColor}"></span>`;
+          }).join('')}</div>`;
+          const countBadge = `<span class="text-[9px] ${isToday?'text-orange-100':'text-gray-400'}">${confirmedCount}/${totalCount}</span>`;
+          cellBody = dotHtml + countBadge;
+        }
 
         grid.innerHTML += `
           <button onclick="showCalendarDetail(${date})"
-            class="h-16 ${bgCls} border ${borderCls} rounded-lg p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full">
+            class="h-16 ${bgCls} border ${borderCls} rounded-lg p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
             <span class="text-xs font-bold ${numCls}">${date}</span>
-            ${dotHtml}
-            ${countBadge}
+            ${cellBody}
           </button>`;
       }
     }
