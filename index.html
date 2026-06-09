@@ -215,7 +215,7 @@
             <span id="nouhin-count" class="text-[10px] text-gray-400">0 / 5</span>
           </div>
           <div class="photo-grid" id="nouhin-photo-grid"></div>
-          <input type="file" id="nouhin-file-input" accept="image/*" multiple class="hidden" onchange="handlePhotoSelect('nouhin', event)">
+          <input type="file" id="nouhin-file-input" accept="image/*" capture="environment" multiple class="hidden" onchange="handlePhotoSelect('nouhin', event)">
         </div>
         <div>
           <label class="block text-[11px] font-bold text-gray-500 mb-1">納品メモ</label>
@@ -231,7 +231,7 @@
             <span id="hikitori-count" class="text-[10px] text-gray-400">0 / 5</span>
           </div>
           <div class="photo-grid" id="hikitori-photo-grid"></div>
-          <input type="file" id="hikitori-file-input" accept="image/*" multiple class="hidden" onchange="handlePhotoSelect('hikitori', event)">
+          <input type="file" id="hikitori-file-input" accept="image/*" capture="environment" multiple class="hidden" onchange="handlePhotoSelect('hikitori', event)">
         </div>
         <div>
           <label class="block text-[11px] font-bold text-gray-500 mb-1">引取メモ</label>
@@ -447,11 +447,30 @@
         grid.appendChild(thumb);
       });
       if (photos.length < MAX_PHOTOS) {
-        const add = document.createElement('div');
-        add.className = 'photo-add-btn';
-        add.innerHTML = `<span class="icon">📷</span><span>追加</span>`;
-        add.onclick = () => document.getElementById(`${type}-file-input`).click();
-        grid.appendChild(add);
+        // カメラボタン
+        const cam = document.createElement('div');
+        cam.className = 'photo-add-btn';
+        cam.innerHTML = `<span class="icon">📷</span><span>カメラ</span>`;
+        cam.onclick = () => {
+          const inp = document.getElementById(`${type}-file-input`);
+          inp.setAttribute('capture', 'environment');
+          inp.removeAttribute('multiple');
+          inp.click();
+          inp.setAttribute('multiple', '');
+        };
+        grid.appendChild(cam);
+
+        // ファイル選択ボタン
+        const file = document.createElement('div');
+        file.className = 'photo-add-btn';
+        file.innerHTML = `<span class="icon">🖼️</span><span>選択</span>`;
+        file.onclick = () => {
+          const inp = document.getElementById(`${type}-file-input`);
+          inp.removeAttribute('capture');
+          inp.setAttribute('multiple', '');
+          inp.click();
+        };
+        grid.appendChild(file);
       }
     }
     function handlePhotoSelect(type, event) {
@@ -1098,57 +1117,70 @@
       list.innerHTML = '';
       if (companies.length===0) { list.innerHTML='<p class="text-xs text-gray-400 text-center py-3">この日の運行予定はありません。</p>'; return; }
 
-      companies.sort((a,b)=>(a.time||'').localeCompare(b.time||''));
+      // 車両ごとにグループ化
+      const vehicleGroups = [];
+      const seenVehicles = [];
       companies.forEach(c => {
-        const v = db.vehicles.find(x=>String(x.id)===String(c.vehicleId));
-        const badge = c.confirmed
-          ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ 確定</span>'
-          : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">📅 定期</span>';
-        const typeBadge = c.type==='spot'
-          ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">スポット</span>' : '';
+        const vid = c.vehicleId || '__none__';
+        if (!seenVehicles.includes(vid)) {
+          seenVehicles.push(vid);
+          vehicleGroups.push({ vehicleId: vid, items: [] });
+        }
+        vehicleGroups.find(g => g.vehicleId === vid).items.push(c);
+      });
+      // 各グループ内を時刻でソート
+      vehicleGroups.forEach(g => g.items.sort((a,b) => (a.time||'').localeCompare(b.time||'')));
 
-        // delivery_recordsから該当レコードを取得
-        // dateがISO形式（2026-05-25T15:00:00.000Z）でも対応できるよう先頭10文字で比較
-        const rec = (db.delivery_records||[]).find(r => {
-          const recDate = r.date ? String(r.date).substring(0, 10) : '';
-          const recName = String(r.companyName||'').trim();
-          return recDate === fd && recName === c.name;
-        });
-        const hasRecord = !!rec;
-        const savedAtText = hasRecord && rec.savedAt
-          ? `<span class="text-[10px] text-gray-400">${rec.savedAt}</span>` : '';
-        const recBtn = hasRecord
-          ? `<div class="flex flex-col items-end gap-0.5">
-               <button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
-                 class="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap">
-                 📋 記録を見る
-               </button>
-               ${savedAtText}
-             </div>`
-          : `<span class="text-[10px] text-gray-300 whitespace-nowrap">記録なし</span>`;
+      vehicleGroups.forEach(group => {
+        const gv = db.vehicles.find(x => String(x.id) === String(group.vehicleId));
+        const col = getVehicleColor(group.vehicleId === '__none__' ? null : group.vehicleId);
 
-        const drvOpts = '<option value="">-- ドライバー --</option>' +
-          (db.drivers||[]).map(d =>
-            `<option value="${d.id}" ${String(d.id)===String(c.driverId)?'selected':''}>${d.name}</option>`
-          ).join('');
-        const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g,'');
-
-        const drv = (db.drivers||[]).find(x => String(x.id) === String(c.driverId));
-
+        // 車両グループヘッダー
         list.innerHTML += `
-          <div class="flex items-center gap-1.5 p-2.5 bg-gray-50 rounded-lg overflow-x-auto">
-            ${badge}${typeBadge}
-            <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
-            <span class="text-[11px] text-gray-500 shrink-0">🚛${v?v.name:'未定'}</span>
-            <select id="${calDrvId}"
-              onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
-              class="w-24 border p-1 rounded-lg text-[11px] bg-white shrink-0">${drvOpts}</select>
-            <span class="text-[10px] text-gray-400 shrink-0">${hasRecord && rec.savedAt ? '📝'+rec.savedAt : '未記録'}</span>
-            ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
-              class="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
-              📋記録
-            </button>` : ''}
+          <div class="flex items-center gap-2 mt-2 first:mt-0">
+            <div class="text-xs font-bold px-2.5 py-1 rounded-full shrink-0"
+              style="background:${col.bg};color:${col.text}">
+              🚛 ${gv ? gv.name : '車両未定'}
+            </div>
+            <div class="flex-1 h-px bg-gray-200"></div>
           </div>`;
+
+        group.items.forEach(c => {
+          const v = gv;
+          const badge = c.confirmed
+            ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ 確定</span>'
+            : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">📅 定期</span>';
+          const typeBadge = c.type==='spot'
+            ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">スポット</span>' : '';
+
+          const rec = (db.delivery_records||[]).find(r => {
+            const recDate = r.date ? String(r.date).substring(0, 10) : '';
+            const recName = String(r.companyName||'').trim();
+            return recDate === fd && recName === c.name;
+          });
+          const hasRecord = !!rec;
+
+          const drvOpts = '<option value="">-- ドライバー --</option>' +
+            (db.drivers||[]).map(d =>
+              `<option value="${d.id}" ${String(d.id)===String(c.driverId)?'selected':''}>${d.name}</option>`
+            ).join('');
+          const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g,'');
+
+          list.innerHTML += `
+            <div class="flex items-center gap-1.5 p-2.5 rounded-lg overflow-x-auto ml-2"
+              style="background:${col.bg}20">
+              ${badge}${typeBadge}
+              <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
+              <select id="${calDrvId}"
+                onchange="updateCalendarDriver('${fd}','${c.name.replace(/'/g,"\'")}','${c.vehicleId||''}',this.value)"
+                class="w-24 border p-1 rounded-lg text-[11px] bg-white shrink-0">${drvOpts}</select>
+              <span class="text-[10px] text-gray-400 shrink-0">${hasRecord && rec.savedAt ? '📝'+rec.savedAt : '未記録'}</span>
+              ${hasRecord ? `<button onclick="openRecordViewer('${fd}','${c.name.replace(/'/g,"\'")}',${JSON.stringify(rec).replace(/"/g,'&quot;')})"
+                class="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition whitespace-nowrap shrink-0">
+                📋記録
+              </button>` : ''}
+            </div>`;
+        });
       });
     }
 
