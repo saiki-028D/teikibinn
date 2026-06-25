@@ -69,6 +69,7 @@
       <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3">
         <div class="flex items-center justify-between border-b pb-2">
           <h2 class="text-base font-bold text-gray-700">🚛 本日の運行計画（チェック・設定）</h2>
+          <button onclick="openTodaySpotModal()" class="text-xs font-bold px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">＋ スポット便</button>
         </div>
         <p class="text-xs text-gray-400">※基本パターン・事前予定が自動チェックされています。</p>
         <div id="today-dispatch-selector" class="space-y-2"></div>
@@ -918,9 +919,43 @@
         const name = chk.getAttribute('data-name');
         const did  = 'D_'+todayStr+'_'+name.replace(/\s+/g,'');
         const drvEl = document.getElementById(`drv-${id}`);
-        const row  = {id:did, name, from:'', to:'', time:document.getElementById(`time-${id}`).value, vehicleId:document.getElementById(`vec-${id}`).value, driverId: drvEl ? drvEl.value : '', days:chk.checked?'GO':'SKIP', note:todayStr};
-        fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
-        .then(()=>{ if(++done===cbs.length) { document.getElementById('today-dispatch-selector-others').classList.add('hidden'); document.getElementById('btn-toggle-others').textContent='＋ スポット便（他曜日の取引先）を表示'; setTimeout(loadAllData,1000); }});
+        const isGo = chk.checked;
+        const row  = {id:did, name, from:'', to:'', time:document.getElementById(`time-${id}`).value, vehicleId:document.getElementById(`vec-${id}`).value, driverId: drvEl ? drvEl.value : '', days:isGo?'GO':'SKIP', note:todayStr};
+
+        const onDone = () => {
+          if(++done===cbs.length) {
+            document.getElementById('today-dispatch-selector-others').classList.add('hidden');
+            document.getElementById('btn-toggle-others').textContent='＋ スポット便（他曜日の取引先）を表示';
+            setTimeout(loadAllData,1000);
+          }
+        };
+
+        // SKIPの場合、事前入力行（D_以外のID）も削除する
+        if (!isGo) {
+          const todaySlash = todayStr.replace(/-/g,'/');
+          const preEntries = db.routes.filter(r =>
+            r.name === name &&
+            r.note && (String(r.note).includes(todayStr) || String(r.note).includes(todaySlash)) &&
+            r.id && !r.id.startsWith('D_')
+          );
+          let subDone = 0;
+          const total = preEntries.length + 1; // +1 for upsert below
+          const subCheck = () => { if(++subDone === total) onDone(); };
+
+          preEntries.forEach(r => {
+            fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({action:'delete',sheet:'routes',id:r.id})})
+            .then(subCheck);
+          });
+
+          fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
+          .then(subCheck);
+        } else {
+          fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
+          .then(onDone);
+        }
       });
     }
 
@@ -1226,6 +1261,27 @@
     }
     // ── スポット便モーダル ──
     let spotTargetDate = '';
+
+    function openTodaySpotModal() {
+      // 今日の日付でスポットモーダルを開く
+      spotTargetDate = todayStr;
+      document.getElementById('spot-modal-date').innerText = todayStr;
+      document.getElementById('spot-name').value = '';
+      document.getElementById('spot-time').value = '';
+
+      const dl = document.getElementById('spot-name-list');
+      dl.innerHTML = '';
+      const masters = db.routes.filter(r => r.name && (!r.note || !(/\d{4}[-\/]\d{2}[-\/]\d{2}/.test(String(r.note)))));
+      [...new Set(masters.map(r => r.name))].forEach(name => {
+        dl.innerHTML += `<option value="${name}">`;
+      });
+
+      const vSel = document.getElementById('spot-vehicle');
+      vSel.innerHTML = '<option value="">-- 車両選択 --</option>';
+      db.vehicles.forEach(v => { vSel.innerHTML += `<option value="${v.id}">${v.name}</option>`; });
+
+      document.getElementById('spot-modal').classList.remove('hidden');
+    }
 
     function openSpotModal() {
       // 現在表示中の詳細パネルの日付を取得
