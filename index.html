@@ -926,7 +926,9 @@
           if(++done===cbs.length) {
             document.getElementById('today-dispatch-selector-others').classList.add('hidden');
             document.getElementById('btn-toggle-others').textContent='＋ スポット便（他曜日の取引先）を表示';
-            setTimeout(loadAllData,1000);
+            // 3秒後に読み込み、念のため6秒後にも再読み込み
+            setTimeout(loadAllData, 3000);
+            setTimeout(loadAllData, 6000);
           }
         };
 
@@ -1624,7 +1626,7 @@
     function deleteRow(sheet,id){if(!confirm('削除しますか？'))return;updateStatus('loading','削除中...');sendPostRequest({action:'delete',sheet,id});}
     function sendPostRequest(payload){
       fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-      .then(()=>{setTimeout(loadAllData,1000);}).catch(err=>{updateStatus('error','通信エラー: '+err.message);});
+      .then(()=>{setTimeout(loadAllData,3000);}).catch(err=>{updateStatus('error','通信エラー: '+err.message);});
     }
     let toastTimer = null;
     function updateStatus(type, text) {
