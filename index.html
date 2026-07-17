@@ -396,34 +396,10 @@
   </div>
 
   <script>
-    const SUPABASE_URL  = 'https://nbwkvojuzwblzdmzzaaq.supabase.co';
-    const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5id2t2b2p1endibHpkbXp6YWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzI0NTcsImV4cCI6MjA5OTcwODQ1N30.8FAdgbOhnst8RQFodY9Adt_CGLDIUKH6FucgtAP2V3A';
-    const SB_HEADERS    = { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` };
-    const CLOUDINARY_CLOUD  = 'deshebyn8';
+    const GAS_URL = 'https://script.google.com/macros/s/AKfycbxXlU1hfoPqjDiL4KQJg0vZFtDnNjlFUh0RedtfekkgnGGpJrfmOt-ogFjPoEVJYu9Q6w/exec';
+    const CLOUDINARY_CLOUD = 'deshebyn8';
     const CLOUDINARY_PRESET = 'vehicle_photos';
-    const CLOUDINARY_URL    = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
-
-    // Supabase REST API ヘルパー
-    async function sbSelect(table, query='') {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}&limit=2000`, {
-        headers: { ...SB_HEADERS, 'Prefer': 'return=representation' }
-      });
-      return r.ok ? r.json() : [];
-    }
-    async function sbUpsert(table, row) {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
-        method: 'POST',
-        headers: { ...SB_HEADERS, 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(row)
-      });
-      return r.ok;
-    }
-    async function sbDelete(table, id) {
-      const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${encodeURIComponent(id)}`, {
-        method: 'DELETE', headers: SB_HEADERS
-      });
-      return r.ok;
-    }
+    const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`;
     let db = { vehicles: [], routes: [], checks: [], delivery_records: [], drivers: [] };
     let holidays = {};
     let currentYear, currentMonth;
@@ -575,21 +551,23 @@
       // スプレッドシートにレコード保存（GAS経由）
       try {
         updateStatus('loading', 'スプレッドシートに保存中...');
-        const deliveryRow = {
-          id: `${todayStr}_${selectedDeliveryCompanyName}`.replace(/\s+/g,'_'),
-          companyName:       selectedDeliveryCompanyName,
-          date:              todayStr,
-          nouhinMemo,
-          hikitoriMemo,
-          nouhinPhotoUrls:   nouhinUrls.join(','),
-          hikitoriPhotoUrls: hikitoriUrls.join(','),
-          savedAt:           new Date().toLocaleString('ja-JP')
-        };
-        await sbUpsert('delivery_records', deliveryRow);
-        const idx = db.delivery_records.findIndex(x => x.id === deliveryRow.id);
-        if (idx >= 0) db.delivery_records[idx] = deliveryRow;
-        else db.delivery_records.push(deliveryRow);
-        console.log('保存完了:', deliveryRow);
+        const r = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'save_delivery',
+            sheet: 'delivery_records',
+            companyName: selectedDeliveryCompanyName,
+            date: todayStr,
+            nouhinMemo,
+            hikitoriMemo,
+            nouhinPhotoUrls: nouhinUrls,
+            hikitoriPhotoUrls: hikitoriUrls,
+            savedAt: new Date().toLocaleString('ja-JP')
+          })
+        });
+        const d = await r.json();
+        console.log('保存結果:', d);
         alert(`${selectedDeliveryCompanyName} の実績を登録しました！`);
         closeDeliveryModal();
         updateStatus('success', '配送実績の報告完了');
@@ -644,9 +622,10 @@
     };
 
     function fetchHolidays() {
-      fetch('https://holidays-jp.github.io/api/v1/date.json')
+      // 祝日取得とデータ取得を並列で同時スタート
+      const holidayPromise = fetch('https://holidays-jp.github.io/api/v1/date.json')
         .then(r => r.json()).then(d => { holidays = d; }).catch(() => {});
-      loadAllData();
+      loadAllData(holidayPromise);
     }
 
     function switchTab(tabId) {
@@ -656,27 +635,50 @@
       document.getElementById(`tab-${tabId}`).className = 'w-full py-4 text-blue-600 font-bold border-b-2 border-blue-600';
     }
 
-    async function loadAllData() {
+    function loadAllData(holidayPromise) {
       updateStatus('loading', '最新情報を取得中...');
-      try {
-        const [vehicles, routes, checks, delivery_records, drivers] = await Promise.all([
-          sbSelect('vehicles'),
-          sbSelect('routes'),
-          sbSelect('checks'),
-          sbSelect('delivery_records'),
-          sbSelect('drivers')
-        ]);
-        db.vehicles         = vehicles         || [];
-        db.routes           = routes           || [];
-        db.checks           = checks           || [];
-        db.delivery_records = delivery_records || [];
-        db.drivers          = drivers          || [];
-        updateStatus('success', 'データを同期しました');
-        refreshAllViews();
-      } catch(e) {
-        console.error('loadAllData error:', e);
-        updateStatus('error', 'データ取得に失敗しました');
-      }
+      let loaded = 0;
+      const sheets = ['vehicles','routes','checks','delivery_records','drivers'];
+      const total = sheets.length;
+
+      const onAllLoaded = () => {
+        (holidayPromise || Promise.resolve()).finally(() => {
+          updateStatus('success','スプレッドシートと同期完了');
+          refreshAllViews();
+        });
+      };
+
+      // 全シートを同時並列で取得
+      sheets.forEach(sheet => {
+        const cb = `callback_${sheet}_${Date.now()}`;
+
+        const timer = setTimeout(() => {
+          if (!window[cb + '_done']) {
+            window[cb + '_done'] = true;
+            db[sheet] = db[sheet] || [];
+            if (++loaded === total) onAllLoaded();
+          }
+        }, 5000);
+
+        window[cb] = function(res) {
+          if (window[cb + '_done']) return;
+          window[cb + '_done'] = true;
+          clearTimeout(timer);
+          db[sheet] = res.data || [];
+          if (++loaded === total) onAllLoaded();
+        };
+
+        const s = document.createElement('script');
+        s.onerror = () => {
+          if (window[cb + '_done']) return;
+          window[cb + '_done'] = true;
+          clearTimeout(timer);
+          db[sheet] = db[sheet] || [];
+          if (++loaded === total) onAllLoaded();
+        };
+        s.src = `${GAS_URL}?sheet=${sheet}&callback=${cb}&_=${Date.now()}`;
+        document.body.appendChild(s);
+      });
     }
 
     function refreshAllViews() {
@@ -924,8 +926,9 @@
           if(++done===cbs.length) {
             document.getElementById('today-dispatch-selector-others').classList.add('hidden');
             document.getElementById('btn-toggle-others').textContent='＋ スポット便（他曜日の取引先）を表示';
-            // 即反映済み（Supabase）
-            updateStatus('success', '運行計画を確定しました');
+            // 3秒後に読み込み、念のため6秒後にも再読み込み
+            setTimeout(loadAllData, 3000);
+            setTimeout(loadAllData, 6000);
           }
         };
 
@@ -942,12 +945,18 @@
           const subCheck = () => { if(++subDone === total) onDone(); };
 
           preEntries.forEach(r => {
-            preEntries.forEach(r => {
-            sbDelete('routes', r.id).then(subCheck);
+            fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({action:'delete',sheet:'routes',id:r.id})})
+            .then(subCheck);
           });
-          sbUpsert('routes', row).then(subCheck);
+
+          fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
+          .then(subCheck);
         } else {
-          sbUpsert('routes', row).then(onDone);
+          fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({action:'upsert',sheet:'routes',id:did,row})})
+          .then(onDone);
         }
       });
     }
@@ -1313,16 +1322,21 @@
       const id        = 'D_' + spotTargetDate + '_' + name.replace(/\s+/g, '');
       const row       = { id, name, from:'', to:'', time, vehicleId, days:'GO', note: spotTargetDate };
 
-      db.routes.push(row);
-      closeSpotModal();
-      refreshAllViews();
       updateStatus('loading', 'スポット便を追加中...');
-      sbUpsert('routes', row).then(() => {
-        updateStatus('success', 'スポット便を追加しました');
-        const d = new Date(spotTargetDate);
-        if (d.getMonth()+1 === currentMonth && d.getFullYear() === currentYear) {
-          showCalendarDetail(d.getDate());
-        }
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', sheet: 'routes', id, row })
+      }).then(() => {
+        closeSpotModal();
+        setTimeout(() => {
+          loadAllData();
+          // 詳細パネルを再表示
+          setTimeout(() => {
+            const d = new Date(spotTargetDate);
+            showCalendarDetail(d.getDate());
+          }, 1200);
+        }, 800);
       });
     }
 
@@ -1331,16 +1345,22 @@
       const id  = 'D_' + fd + '_' + companyName.replace(/\s+/g, '');
       const row = { id, name: companyName, from:'', to:'', time:'', vehicleId, driverId, days:'GO', note: fd };
       updateStatus('loading', 'ドライバーを変更中...');
-      sbUpsert('routes', row).then(() => {
-        updateStatus('success', 'ドライバーを変更しました');
-        // db を直接更新して即反映
-        const idx = db.routes.findIndex(x => String(x.id) === String(id));
-        if (idx >= 0) db.routes[idx] = {...db.routes[idx], ...row};
-        else db.routes.push(row);
-        const d = new Date(fd);
-        if (d.getMonth()+1 === currentMonth && d.getFullYear() === currentYear) {
-          showCalendarDetail(d.getDate());
-        }
+      fetch(GAS_URL, {
+        method: 'POST', mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'upsert', sheet: 'routes', id, row })
+      }).then(() => {
+        setTimeout(() => {
+          loadAllData();
+          updateStatus('success', 'ドライバーを変更しました');
+          // 詳細パネルを再表示
+          setTimeout(() => {
+            const d = new Date(fd);
+            if (d.getMonth()+1 === currentMonth && d.getFullYear() === currentYear) {
+              showCalendarDetail(d.getDate());
+            }
+          }, 1200);
+        }, 800);
       });
     }
 
@@ -1593,64 +1613,20 @@
         document.getElementById('check-inspector').value=recs[0].inspector||'';
       }
     }
-    async function saveCheckData() {
-      const vId = document.getElementById('check-vehicle').value;
-      if (!vId) { alert('車両を選択してください'); return; }
-      updateStatus('loading', '点検データを保存中...');
-      const year  = document.getElementById('check-year').value;
-      const month = document.getElementById('check-month').value;
-      const note  = document.getElementById('check-note').value;
-      const inspector = document.getElementById('check-inspector').value;
-      const savedAt   = new Date().toLocaleString('ja-JP');
-      const rows = Object.entries(currentMarks).map(([key, value]) => ({
-        id: `${vId}_${year}_${month}_${key}`,
-        vehicleId: vId, year, month,
-        itemKey: key, value, note, inspector, savedAt
-      }));
-      try {
-        await Promise.all(rows.map(r => sbUpsert('checks', r)));
-        db.checks = db.checks.filter(c =>
-          !(String(c.vehicleId)===String(vId) && String(c.year)===String(year) && String(c.month)===String(month))
-        );
-        db.checks.push(...rows);
-        updateStatus('success', '点検データを保存しました');
-      } catch(e) {
-        updateStatus('error', '保存に失敗しました');
-      }
+    function saveCheckData() {
+      const vId=document.getElementById('check-vehicle').value; if(!vId){alert('車両を選択してください');return;}
+      updateStatus('loading','点検データを保存中...');
+      sendPostRequest({action:'save_check',sheet:'checks',vehicleId:vId,year:document.getElementById('check-year').value,month:document.getElementById('check-month').value,marks:currentMarks,note:document.getElementById('check-note').value,inspector:document.getElementById('check-inspector').value,savedAt:new Date().toLocaleString('ja-JP')});
     }
 
     // ════════════════════════════════════════════════════════
     //  通信共通
     // ════════════════════════════════════════════════════════
-    async function upsertRow(table, id, row) {
-      updateStatus('loading', '送信中...');
-      // db をすぐに更新して即反映
-      const idx = db[table] ? db[table].findIndex(x => String(x.id) === String(id)) : -1;
-      if (db[table]) {
-        if (idx >= 0) db[table][idx] = {...db[table][idx], ...row};
-        else db[table].push(row);
-      }
-      refreshAllViews();
-      // バックグラウンドでSupabaseに保存
-      try {
-        await sbUpsert(table, row);
-        updateStatus('success', '保存しました');
-      } catch(e) {
-        updateStatus('error', '保存に失敗しました');
-      }
-    }
-    async function deleteRow(table, id) {
-      if (!confirm('削除しますか？')) return;
-      updateStatus('loading', '削除中...');
-      // db をすぐに更新
-      if (db[table]) db[table] = db[table].filter(x => String(x.id) !== String(id));
-      refreshAllViews();
-      try {
-        await sbDelete(table, id);
-        updateStatus('success', '削除しました');
-      } catch(e) {
-        updateStatus('error', '削除に失敗しました');
-      }
+    function upsertRow(sheet,id,row){updateStatus('loading','送信中...');sendPostRequest({action:'upsert',sheet,id,row});}
+    function deleteRow(sheet,id){if(!confirm('削除しますか？'))return;updateStatus('loading','削除中...');sendPostRequest({action:'delete',sheet,id});}
+    function sendPostRequest(payload){
+      fetch(GAS_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(()=>{setTimeout(loadAllData,3000);}).catch(err=>{updateStatus('error','通信エラー: '+err.message);});
     }
     let toastTimer = null;
     function updateStatus(type, text) {
