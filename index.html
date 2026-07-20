@@ -983,7 +983,6 @@
           const subCheck = () => { if(++subDone === total) onDone(); };
 
           preEntries.forEach(r => {
-            preEntries.forEach(r => {
             sbDelete('routes', r.id).then(subCheck);
           });
           sbUpsert('routes', row).then(subCheck);
