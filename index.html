@@ -1520,9 +1520,8 @@
       dSel.innerHTML = '<option value="">-- 自動 --</option>';
       (db.drivers||[]).forEach(d => { dSel.innerHTML += `<option value="${d.id}">${d.name}</option>`; });
 
-      document.getElementById('as-name').value = '';
-      document.getElementById('as-memo').value = '';
-      document.getElementById('as-time').value = '';
+     document.getElementById('as-name').value = '';
+     document.getElementById('as-memo').value = '';
       
       updateAsTypeButtons();
       renderAsDateGrid();
