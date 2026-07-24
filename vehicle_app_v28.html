@@ -1040,8 +1040,8 @@
               ${badge}
               <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-1">${s.time||'時間未定'}</span>
               <strong class="text-sm text-gray-900">${s.name}</strong>
-              <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v?v.name:'車両未定'}${drv?' ／ 👤 '+drv.name:''}</span>
-            </div>
+              ${s.memo ? `<span class="text-xs text-blue-500 ml-1">📝 ${s.memo}</span>` : ''}
+              <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v?v.name:'車両未定'}${drv?' ／ 👤 '+drv.name:''}</span>            </div>
             <button onclick="openDeliveryModal('${s.name.replace(/'/g,"\\'")}')" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow-sm hover:opacity-90">
               📸 記録
             </button>
@@ -1611,42 +1611,7 @@
       if (autoDriver) dSel.value = autoDriver.id;
     }
 
-    async function submitAddSchedule() {
-      const name = document.getElementById('as-name').value.trim();
-      if (!name) { alert('取引先名を入力してください'); return; }
-      if (!asState.hasDelivery && !asState.hasPickup) { alert('納品か引取を選択してください'); return; }
-      if (asState.selectedDates.size === 0) { alert('日付を選択してください'); return; }
-
-      const time      = document.getElementById('as-time').value;
-      const vehicleId = document.getElementById('as-vehicle').value;
-      const driverId  = document.getElementById('as-driver').value;
-
-      const dates = [...asState.selectedDates].sort();
-      const rows  = [];
-
-      for (const fd of dates) {
-        // 既存行を確認（同日・同会社があれば種別をマージ）
-        const existId  = `D_${fd}_${name.replace(/\s+/g,'')}`;
-        const existing = db.routes.find(r => String(r.id) === existId);
-        const row = {
-          id:          existId,
-          name,
-          time:        time || (existing ? existing.time : ''),
-          vehicleId:   vehicleId || (existing ? existing.vehicleId : ''),
-          driverId:    driverId  || (existing ? existing.driverId  : ''),
-          days:        'GO',
-          note:        fd,
-          hasDelivery: asState.hasDelivery ? '1' : (existing ? existing.hasDelivery : ''),
-          hasPickup:   asState.hasPickup   ? '1' : (existing ? existing.hasPickup   : ''),
-        };
-        rows.push(row);
-
-        // db を即更新
-        const idx = db.routes.findIndex(r => r.id === existId);
-        if (idx >= 0) db.routes[idx] = {...db.routes[idx], ...row};
-        else db.routes.push(row);
-      }
-
+    async function submitAddSchedule()
       closeAddScheduleModal();
       refreshAllViews();
       updateStatus('loading', `${dates.length}件の便を追加中...`);
