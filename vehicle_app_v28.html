@@ -455,21 +455,31 @@
         </select>
       </div>
 
-      <!-- ⑥ ドライバー -->
+      <!-- ⑤ ドライバー -->
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">⑥ ドライバー <span class="text-gray-300 font-normal">（未選択時はマスタから自動セット）</span></label>
-        <select id="as-driver" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+        <label class="block text-xs font-bold text-gray-500 mb-1">⑤ ドライバー <span class="text-gray-300 font-normal">（未選択時はマスタから自動セット）</span></label>
+        <select id="as-driver" tabindex="0"
+          class="w-full border p-2 rounded-lg text-sm bg-gray-50"
+          onkeydown="if(event.key==='Tab'&&!event.shiftKey){event.preventDefault();document.getElementById('as-memo').focus()}">
           <option value="">-- 自動 --</option>
         </select>
+        <button onclick="document.getElementById('as-memo').focus()"
+          class="mt-2 w-full py-1.5 text-xs text-blue-600 border border-blue-200 rounded-lg bg-blue-50 md:hidden">
+          次へ →
+        </button>
       </div>
 
-      <div class="flex justify-end gap-2 text-sm pt-2 border-t">
-        <button onclick="closeAddScheduleModal()" class="px-4 py-2 bg-gray-100 rounded-lg font-medium">キャンセル</button>
-        <button onclick="submitAddSchedule()" class="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition">追加する</button>
+      <!-- ⑥ メモ -->
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">⑥ メモ <span class="text-gray-300 font-normal">（確定スケジュールに表示）</span></label>
+        <input type="text" id="as-memo" placeholder="例: 午後便、要連絡など" tabindex="0"
+          class="w-full border p-2 rounded-lg text-sm"
+          onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddSchedule()}">
+        <button onclick="submitAddSchedule()"
+          class="mt-2 w-full py-1.5 text-xs text-white bg-blue-600 rounded-lg md:hidden">
+          完了・追加する
+        </button>
       </div>
-    </div>
-  </div>
-
   <!-- ══ 記録閲覧モーダル ══ -->
   <div id="record-viewer-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
     <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 my-6 shadow-xl">
