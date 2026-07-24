@@ -1613,7 +1613,7 @@
       if (autoDriver) dSel.value = autoDriver.id;
     }
 
-    async function submitAddSchedule()
+    async function submitAddSchedule() {
       closeAddScheduleModal();
       refreshAllViews();
       updateStatus('loading', `${dates.length}件の便を追加中...`);
