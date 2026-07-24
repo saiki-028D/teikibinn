@@ -1520,9 +1520,8 @@
       dSel.innerHTML = '<option value="">-- 自動 --</option>';
       (db.drivers||[]).forEach(d => { dSel.innerHTML += `<option value="${d.id}">${d.name}</option>`; });
 
-      document.getElementById('as-name').value = '';
-      document.getElementById('as-memo').value = '';
-      document.getElementById('as-time').value = '';
+     document.getElementById('as-name').value = '';
+     document.getElementById('as-memo').value = '';
       
       updateAsTypeButtons();
       renderAsDateGrid();
@@ -1613,7 +1612,7 @@
       if (autoDriver) dSel.value = autoDriver.id;
     }
 
-    async function submitAddSchedule()
+    async function submitAddSchedule() {
       closeAddScheduleModal();
       refreshAllViews();
       updateStatus('loading', `${dates.length}件の便を追加中...`);
