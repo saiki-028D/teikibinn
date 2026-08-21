@@ -50,7 +50,8 @@ function getVehicleColor(vehicleId) {
 // ════════════════════════════════════════════════════════
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
+  const id = document.getElementById('login-email').value.trim();
+  const email = id.includes('@') ? id : `${id}@${LOGIN_ID_DOMAIN}`;
   const password = document.getElementById('login-password').value;
   const btn = document.getElementById('login-submit');
   const errEl = document.getElementById('login-error');
@@ -59,7 +60,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   btn.disabled = false; btn.textContent = 'ログイン';
   if (error) {
-    errEl.textContent = 'ログインできませんでした（メールアドレスまたはパスワードが違います）';
+    errEl.textContent = 'ログインできませんでした（IDまたはパスワードが違います）';
     errEl.classList.remove('hidden');
   }
 });
