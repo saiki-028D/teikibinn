@@ -3,8 +3,8 @@
 // ============================================================
 
 // Supabaseプロジェクトの Settings > API から取得してください
-const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const SUPABASE_URL = 'https://nbwkvojuzwblzdmzzaaq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5id2t2b2p1endibHpkbXp6YWFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxMzI0NTcsImV4cCI6MjA5OTcwODQ1N30.8FAdgbOhnst8RQFodY9Adt_CGLDIUKH6FucgtAP2V3A';
 
 // Cloudinary（写真アップロード先）：これまでと同じ値を使う場合はそのままでOK
 const CLOUDINARY_CLOUD = 'deshebyn8';
