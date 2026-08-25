@@ -20,6 +20,11 @@
     .vtab-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
     .vtab-bar::-webkit-scrollbar { height: 0; }
     .missing-row { background: #fef2f2 !important; border-color: #fecaca !important; }
+    @media print {
+      .no-print { display: none !important; }
+      body { background: #fff; }
+      main { max-width: 100% !important; padding: 0 !important; }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -50,7 +55,7 @@
   </div>
 
   <div id="app" class="hidden">
-    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <nav class="no-print bg-white border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-4xl mx-auto flex justify-between items-stretch text-center text-sm overflow-x-auto">
         <button onclick="switchTab('today')"     id="tab-today"     class="w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap">本日</button>
         <button onclick="switchTab('calendar')"  id="tab-calendar"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">カレンダー</button>
@@ -111,11 +116,15 @@
       <section id="view-calendar" class="tab-content hidden space-y-4">
         <div class="bg-white p-4 rounded-md border border-gray-200">
           <div class="flex justify-between items-center mb-3">
-            <button onclick="changeMonth(-1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">◀</button>
+            <button onclick="changeMonth(-1)" class="no-print px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">◀</button>
             <span id="calendar-month-title" class="text-lg font-bold"></span>
-            <button onclick="changeMonth(1)"  class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
+            <button onclick="changeMonth(1)"  class="no-print px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
           </div>
-          <div class="grid grid-cols-2 gap-2 mb-1.5">
+          <div class="flex items-center justify-between gap-2 mb-3">
+            <div id="cal-freshness" class="text-[10px] text-gray-500 leading-tight"></div>
+            <button id="cal-print-btn" onclick="printCalendar()" class="no-print text-[11px] font-bold px-2.5 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 transition shrink-0">🖨 印刷する</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mb-1.5 no-print">
             <button onclick="openAddScheduleModal()" class="text-xs font-bold px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition flex items-center justify-center gap-1.5">
               <span>📝</span><span>個別入力</span>
             </button>
@@ -123,9 +132,9 @@
               <span>📊</span><span>エクセルで一括登録</span>
             </button>
           </div>
-          <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" class="block text-center text-[11px] text-indigo-600 underline mb-3">⬇️ エクセル取込用テンプレートをダウンロード</a>
-          <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
-          <div class="mb-3">
+          <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" class="no-print block text-center text-[11px] text-indigo-600 underline mb-3">⬇️ エクセル取込用テンプレートをダウンロード</a>
+          <div class="vtab-bar mb-2 no-print" id="cal-vtab-bar"></div>
+          <div class="mb-3 no-print">
             <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
               class="w-full border p-2 rounded text-sm bg-gray-50">
               <option value="">すべての会社</option>
@@ -140,7 +149,7 @@
         <div id="calendar-detail" class="bg-white p-4 rounded-md border border-gray-200 hidden">
           <div class="flex items-center justify-between mb-3">
             <h3 id="calendar-detail-date" class="font-bold text-blue-600"></h3>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 no-print">
               <button id="cal-add-spot-btn" onclick="openAddScheduleModalFromDetail()" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition">＋ 便を追加</button>
               <button onclick="document.getElementById('calendar-detail').classList.add('hidden')" class="text-gray-400 text-lg">×</button>
             </div>

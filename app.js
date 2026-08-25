@@ -23,6 +23,7 @@ let dispatchCache = new Map();   // key: `${date}|${companyName}` -> row
 let dispatchByDate = new Map();  // key: date -> array of rows (company_id無しのスポットも含む)
 let recordsByDate = new Map();   // key: date -> Map(companyName -> record)
 let holidays = {};
+let appSettings = {};            // key -> value（app_settingsテーブルのキャッシュ。全端末共有の設定値）
 
 let currentYear, currentMonth;
 let confirmedVehicleFilter = 'all';
@@ -93,7 +94,7 @@ async function boot() {
   initCheckFormSelectors();
   renderCheckForm();
   updateStatus('loading', '読み込み中...');
-  await Promise.all([fetchHolidays(), loadMasters()]);
+  await Promise.all([fetchHolidays(), loadMasters(), loadAppSettings()]);
   await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
   updateDropdowns();
   refreshAllViews();
@@ -118,6 +119,13 @@ async function loadMasters() {
   db.vehicles = vehicles || [];
   db.drivers = drivers || [];
   db.companies = companies || [];
+}
+
+// 端末を問わない共有設定（例：カレンダーを最後に印刷した日時）を読み込む。
+async function loadAppSettings() {
+  const { data } = await sb.from('app_settings').select('*');
+  appSettings = {};
+  (data || []).forEach(row => { appSettings[row.key] = row.value; });
 }
 
 function monthRange(year, month) {
@@ -182,6 +190,19 @@ function subscribeRealtime() {
   sb.channel('public:delivery_records')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_records' }, scheduleRefresh)
     .subscribe();
+  sb.channel('public:app_settings')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, scheduleSettingsRefresh)
+    .subscribe();
+}
+
+// 他の端末で「印刷する」が押された等、app_settingsの変更を軽量に反映
+let settingsRefreshTimer = null;
+function scheduleSettingsRefresh() {
+  if (settingsRefreshTimer) clearTimeout(settingsRefreshTimer);
+  settingsRefreshTimer = setTimeout(async () => {
+    await loadAppSettings();
+    if (activeTab === 'calendar') renderCalendar();
+  }, 500);
 }
 
 function switchTab(tabId) {
@@ -233,6 +254,8 @@ function getScheduledCompaniesForDate(dateObj, cache = dispatchCache, byDate = d
       memo: override ? (override.note || '') : '',
       hasDelivery: override ? override.has_delivery !== false : true,
       hasPickup: override ? !!override.has_pickup : false,
+      createdAt: override ? override.created_at : null,
+      updatedAt: override ? override.updated_at : null,
     });
   });
 
@@ -243,6 +266,7 @@ function getScheduledCompaniesForDate(dateObj, cache = dispatchCache, byDate = d
       name: row.company_name, companyId: row.company_id, vehicleId: row.vehicle_id, driverId: row.driver_id, time: row.time,
       type: row.is_spot ? 'spot' : 'regular', confirmed: true,
       memo: row.note || '', hasDelivery: row.has_delivery !== false, hasPickup: !!row.has_pickup,
+      createdAt: row.created_at, updatedAt: row.updated_at,
     });
   });
 
@@ -435,6 +459,57 @@ async function saveTodayDispatch() {
 // ════════════════════════════════════════════════════════
 //  カレンダー
 // ════════════════════════════════════════════════════════
+// 「前回の印刷日時」はapp_settingsテーブルに保存し、全端末・全ユーザーで共有する
+// （どの端末で印刷しても、他の端末のNew判定に正しく反映されるようにするため）。
+const CAL_LAST_PRINTED_SETTING_KEY = 'calendar_last_printed_at';
+
+// 「前回印刷した日時」より後に追加された便かどうか（＝紙には載っていない＝New）
+// 一度も印刷したことがない場合は、New表示が全件に付いて煩わしくなるため表示しない。
+function isNewSinceLastPrint(createdAt) {
+  if (!createdAt) return false;
+  const lastPrint = appSettings[CAL_LAST_PRINTED_SETTING_KEY];
+  if (!lastPrint) return false;
+  return new Date(createdAt).getTime() > new Date(lastPrint).getTime();
+}
+
+function fmtDateTimeJP(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+// カレンダー上部の「データ最終更新／前回の印刷」表示。印刷時もそのまま紙に残る。
+function renderCalendarFreshness() {
+  const el = document.getElementById('cal-freshness');
+  if (!el) return;
+  let latest = null;
+  dispatchByDate.forEach(rows => rows.forEach(r => {
+    if (r.updated_at && (!latest || new Date(r.updated_at) > new Date(latest))) latest = r.updated_at;
+  }));
+  const lastPrint = appSettings[CAL_LAST_PRINTED_SETTING_KEY];
+  el.innerHTML = `📅 データ最終更新：${latest ? fmtDateTimeJP(latest) : '更新履歴なし'}<br>🖨 前回の印刷：${lastPrint ? fmtDateTimeJP(lastPrint) : 'まだ印刷していません'}`;
+}
+
+// 印刷ボタン：今の時点を「印刷日時」としてサーバー（app_settings）に記録してから印刷する。
+// 全端末で共有されるため、どの端末で印刷しても以降は正しく「New」判定される。
+async function printCalendar() {
+  const btn = document.getElementById('cal-print-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '記録中...'; }
+  const now = new Date().toISOString();
+  const { error } = await sb.from('app_settings')
+    .upsert({ key: CAL_LAST_PRINTED_SETTING_KEY, value: now }, { onConflict: 'key' });
+  if (btn) { btn.disabled = false; btn.textContent = '🖨 印刷する'; }
+  if (error) {
+    updateStatus('error', '印刷日時の記録に失敗しました（通信をご確認ください）。印刷は続行します');
+  } else {
+    appSettings[CAL_LAST_PRINTED_SETTING_KEY] = now;
+  }
+  renderCalendarFreshness();
+  renderCalendar();
+  setTimeout(() => window.print(), 50);
+}
+
 function buildCalVtabs() {
   const bar = document.getElementById('cal-vtab-bar');
   bar.innerHTML = '';
@@ -472,6 +547,7 @@ async function changeMonth(diff) {
 function renderCalendar() {
   document.getElementById('calendar-month-title').innerText = `${currentYear}年 ${currentMonth}月`;
   buildCalVtabs();
+  renderCalendarFreshness();
   const grid = document.getElementById('calendar-grid');
   grid.innerHTML = '';
   const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
@@ -492,6 +568,7 @@ function renderCalendar() {
 
     const confirmedCount = companies.filter(c => c.confirmed).length;
     const totalCount = companies.length;
+    const hasNew = companies.some(c => isNewSinceLastPrint(c.createdAt));
 
     let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-gray-100';
     if (isToday) { bgCls = 'bg-orange-500'; numCls = 'text-white'; borderCls = 'border-orange-400'; }
@@ -522,7 +599,8 @@ function renderCalendar() {
 
     grid.innerHTML += `
       <button onclick="showCalendarDetail(${date})"
-        class="h-16 ${bgCls} border ${borderCls} rounded p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
+        class="relative h-16 ${bgCls} border ${borderCls} rounded p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
+        ${hasNew ? '<span class="absolute top-0 right-0 text-[8px] font-bold px-1 py-0.5 rounded-bl bg-red-500 text-white leading-none">New</span>' : ''}
         <span class="text-xs font-bold ${numCls}">${date}</span>
         ${cellBody}
       </button>`;
@@ -571,6 +649,7 @@ function showCalendarDetail(date) {
         ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700">✅ 確定</span>'
         : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">📅 定期</span>';
       const typeBadge = c.type === 'spot' ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">スポット</span>' : '';
+      const newBadge = isNewSinceLastPrint(c.createdAt) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500 text-white">🆕 New</span>' : '';
       const kindBadges = `${c.hasDelivery ? '<span class="text-[10px]" title="納品">📦</span>' : ''}${c.hasPickup ? '<span class="text-[10px]" title="引取">🔄</span>' : ''}`;
 
       const rec = recordsByDate.get(fd) && recordsByDate.get(fd).get(c.name);
@@ -581,7 +660,7 @@ function showCalendarDetail(date) {
 
       list.innerHTML += `
         <div class="flex items-center gap-1.5 p-2.5 rounded overflow-x-auto ml-2" style="background:${col.bg}33">
-          ${badge}${typeBadge}${kindBadges}
+          ${badge}${typeBadge}${newBadge}${kindBadges}
           <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
           ${c.memo ? `<span class="text-[10px] text-blue-500 shrink-0">📝${c.memo}</span>` : ''}
           <select id="${calDrvId}" onchange="updateCalendarDriver('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}',this.value)" class="w-24 border p-1 rounded text-[11px] bg-white shrink-0">${drvOpts}</select>

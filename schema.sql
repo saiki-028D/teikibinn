@@ -124,6 +124,19 @@ create trigger trg_checks_updated_at before update on checks
   for each row execute function set_updated_at();
 
 -- ------------------------------------------------------------
+-- 6b. app_settings（アプリ全体の共有設定：端末を問わない単純なkey-value）
+--     例: key='calendar_last_printed_at' → カレンダーを最後に印刷した日時。
+--     全端末・全ユーザーで共有されるため、複数端末で印刷しても正しく判定できる。
+-- ------------------------------------------------------------
+create table if not exists app_settings (
+  key         text primary key,
+  value       text,
+  updated_at  timestamptz not null default now()
+);
+create trigger trg_app_settings_updated_at before update on app_settings
+  for each row execute function set_updated_at();
+
+-- ------------------------------------------------------------
 -- 6. delivery_records（配送実績：納品／引取の写真URL・メモ）
 -- ------------------------------------------------------------
 create table if not exists delivery_records (
@@ -154,12 +167,13 @@ alter table companies        enable row level security;
 alter table dispatch_days    enable row level security;
 alter table checks           enable row level security;
 alter table delivery_records enable row level security;
+alter table app_settings     enable row level security;
 
 do $$
 declare
   t text;
 begin
-  foreach t in array array['vehicles','drivers','companies','dispatch_days','checks','delivery_records']
+  foreach t in array array['vehicles','drivers','companies','dispatch_days','checks','delivery_records','app_settings']
   loop
     execute format('drop policy if exists "authenticated_all" on %I', t);
     execute format(
@@ -178,3 +192,4 @@ alter publication supabase_realtime add table companies;
 alter publication supabase_realtime add table dispatch_days;
 alter publication supabase_realtime add table checks;
 alter publication supabase_realtime add table delivery_records;
+alter publication supabase_realtime add table app_settings;
