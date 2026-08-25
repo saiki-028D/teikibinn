@@ -755,6 +755,156 @@ async function submitAddSchedule() {
 }
 
 // ════════════════════════════════════════════════════════
+//  エクセル一括登録（指定テンプレートに転記されたエクセルを取り込み）
+// ════════════════════════════════════════════════════════
+let excelImportState = { rows: [] };
+
+function openExcelImportModal() {
+  excelImportState = { rows: [] };
+  document.getElementById('excel-import-file-input').value = '';
+  document.getElementById('excel-import-error').classList.add('hidden');
+  document.getElementById('as-name-list').innerHTML = db.companies.map(c => `<option value="${c.name}">`).join('');
+  showExcelImportStep('upload');
+  document.getElementById('excel-import-modal').classList.remove('hidden');
+}
+function closeExcelImportModal() {
+  document.getElementById('excel-import-modal').classList.add('hidden');
+}
+function showExcelImportStep(step) {
+  document.getElementById('excel-import-step-upload').classList.toggle('hidden', step !== 'upload');
+  document.getElementById('excel-import-step-loading').classList.toggle('hidden', step !== 'loading');
+  document.getElementById('excel-import-step-review').classList.toggle('hidden', step !== 'review');
+}
+
+// Excelの日付セル（Dateオブジェクト）や、テキストで入力された日付文字列を
+// "YYYY-MM-DD" に正規化する。読み取れない場合は空文字を返す（呼び出し側で要確認フラグにする）。
+function excelCellToYMD(v) {
+  if (v instanceof Date && !isNaN(v)) {
+    // SheetJSはExcelのシリアル日付をUTC基準のDateとして返すため、UTC側のgetterで取り出す
+    // （ローカルタイムゾーンで取り出すと前後の日付にずれることがある）
+    const y = v.getUTCFullYear();
+    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(v.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  const m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if (m) return `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+  return '';
+}
+
+async function handleExcelImportFileSelect(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const errEl = document.getElementById('excel-import-error');
+  errEl.classList.add('hidden');
+
+  if (!window.XLSX) {
+    errEl.textContent = 'エクセル読み込み機能の準備中にエラーが発生しました。ページを再読み込みしてからもう一度お試しください。';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  showExcelImportStep('loading');
+  try {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array', cellDates: true });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+    excelImportState.rows = json
+      .map(row => {
+        const date = excelCellToYMD(row['日付']);
+        const company_name = String(row['取引先名'] ?? '').trim();
+        const has_delivery = String(row['納品'] ?? '').trim() === '○';
+        const has_pickup = String(row['引取'] ?? '').trim() === '○';
+        const note = String(row['メモ'] ?? '').trim();
+        const missing = !date || !company_name;
+        return {
+          include: true, date: date || '', company_name, has_delivery, has_pickup, note,
+          confidence: missing ? 'low' : 'high',
+          flag_reason: !date ? '日付を確認してください' : (!company_name ? '取引先名を確認してください' : ''),
+        };
+      })
+      // 完全に空の行（例のすぐ下の空行など）は無視する
+      .filter(r => r.date || r.company_name || r.note || r.has_delivery || r.has_pickup);
+
+    if (excelImportState.rows.length === 0) {
+      errEl.textContent = '読み込める行が見つかりませんでした。テンプレートの形式で入力されているかご確認ください。';
+      errEl.classList.remove('hidden');
+      showExcelImportStep('upload');
+      return;
+    }
+
+    renderExcelImportRows();
+    showExcelImportStep('review');
+  } catch (err) {
+    errEl.textContent = 'エクセルの読み込みに失敗しました。テンプレートをもとに作成したファイルかご確認ください。';
+    errEl.classList.remove('hidden');
+    showExcelImportStep('upload');
+  }
+}
+
+function renderExcelImportRows() {
+  const tbody = document.getElementById('excel-import-rows');
+  tbody.innerHTML = excelImportState.rows.map((r, i) => `
+    <tr class="${r.confidence === 'low' ? 'bg-yellow-50' : ''} border-t">
+      <td class="text-center align-top pt-2"><input type="checkbox" class="w-4 h-4" ${r.include ? 'checked' : ''} onchange="excelImportState.rows[${i}].include=this.checked"></td>
+      <td class="align-top pt-1 px-1">
+        <input type="date" value="${r.date}" class="border rounded p-1 text-xs w-full" onchange="excelImportState.rows[${i}].date=this.value">
+        ${r.confidence === 'low' ? `<div class="text-[10px] text-amber-600 mt-0.5">⚠️ ${r.flag_reason || '要確認'}</div>` : ''}
+      </td>
+      <td class="align-top pt-1 px-1">
+        <input type="text" value="${(r.company_name || '').replace(/"/g, '&quot;')}" list="as-name-list" class="border rounded p-1 text-xs w-full" onchange="excelImportState.rows[${i}].company_name=this.value">
+      </td>
+      <td class="align-top pt-1 px-1">
+        <div class="flex gap-1">
+          <button type="button" onclick="toggleExcelImportType(${i},'has_delivery')" class="px-1.5 py-1 rounded-lg border text-[11px] font-bold ${r.has_delivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-300'}">📦納品</button>
+          <button type="button" onclick="toggleExcelImportType(${i},'has_pickup')" class="px-1.5 py-1 rounded-lg border text-[11px] font-bold ${r.has_pickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-300'}">🔄引取</button>
+        </div>
+      </td>
+      <td class="align-top pt-1 px-1">
+        <input type="text" value="${(r.note || '').replace(/"/g, '&quot;')}" class="border rounded p-1 text-xs w-full" onchange="excelImportState.rows[${i}].note=this.value">
+      </td>
+    </tr>
+  `).join('');
+}
+function toggleExcelImportType(i, field) {
+  excelImportState.rows[i][field] = !excelImportState.rows[i][field];
+  renderExcelImportRows();
+}
+
+async function submitExcelImport() {
+  const targetRows = excelImportState.rows.filter(r => r.include);
+  if (targetRows.length === 0) { alert('反映する行を1つ以上チェックしてください'); return; }
+  const invalid = targetRows.find(r => !r.date || !r.company_name);
+  if (invalid) { alert('日付または取引先名が空の行があります。確認してください。'); return; }
+
+  const rows = targetRows.map(r => {
+    const existing = db.companies.find(c => c.name === r.company_name);
+    return {
+      date: r.date, company_id: existing ? existing.id : null, company_name: r.company_name,
+      status: 'go', vehicle_id: existing ? existing.default_vehicle_id || null : null, driver_id: null,
+      is_spot: !existing, has_delivery: r.has_delivery, has_pickup: r.has_pickup, note: r.note || null,
+    };
+  });
+
+  closeExcelImportModal();
+  updateStatus('loading', `${rows.length}件をカレンダーに反映中...`);
+  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  if (error) { updateStatus('error', '反映に失敗: ' + error.message); return; }
+
+  // 複数の日付・取引先にまたがる場合があるため、一番遅い日付の月をカレンダーに表示する
+  const lastDate = rows.map(r => parseDate(r.date)).sort((a, b) => a - b).pop();
+  currentYear = lastDate.getFullYear(); currentMonth = lastDate.getMonth() + 1;
+  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
+  if (activeTab === 'calendar') showCalendarDetail(lastDate.getDate());
+  updateStatus('success', `${rows.length}件をカレンダーに反映しました`);
+}
+
+// ════════════════════════════════════════════════════════
 //  実績一覧（新規）
 // ════════════════════════════════════════════════════════
 async function loadRecordsView() {
