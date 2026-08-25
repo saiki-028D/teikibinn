@@ -205,14 +205,49 @@ function scheduleSettingsRefresh() {
   }, 500);
 }
 
+// 「マスタ管理」ドロップダウンにまとめたタブ（登録時にしか触らないもの）
+const MASTER_TABS = ['companies', 'vehicles', 'checks', 'drivers'];
+
 function switchTab(tabId) {
   activeTab = tabId;
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.getElementById(`view-${tabId}`).classList.remove('hidden');
-  document.querySelectorAll('nav button[id^="tab-"]').forEach(btn => btn.className = 'w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap');
-  document.getElementById(`tab-${tabId}`).className = 'w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
+
+  const inactiveTop = 'w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap';
+  const activeTop = 'w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
+  ['today', 'calendar', 'records'].forEach(id => {
+    document.getElementById(`tab-${id}`).className = (id === tabId) ? activeTop : inactiveTop;
+  });
+
+  const isMaster = MASTER_TABS.includes(tabId);
+  document.getElementById('tab-master').className = 'w-full py-4 px-2 whitespace-nowrap flex items-center justify-center gap-1 ' +
+    (isMaster ? 'text-slate-800 font-bold border-b-2 border-slate-800' : 'text-gray-600 hover:text-slate-800');
+
+  const inactiveSub = 'block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800';
+  const activeSub = 'block w-full text-left px-4 py-2.5 text-sm font-bold text-slate-800 bg-gray-50';
+  MASTER_TABS.forEach((id, i) => {
+    document.getElementById(`tab-${id}`).className = (id === tabId ? activeSub : inactiveSub) + (i > 0 ? ' border-t border-gray-100' : '');
+  });
+
+  closeMasterMenu();
   if (tabId === 'records') loadRecordsView();
 }
+
+// ── ナビの「マスタ管理」ドロップダウン ──
+function toggleMasterMenu() { document.getElementById('master-menu').classList.toggle('hidden'); }
+function closeMasterMenu() { document.getElementById('master-menu').classList.add('hidden'); }
+
+// ── カレンダーの「＋ 追加」ドロップダウン ──
+function toggleCalAddMenu() { document.getElementById('cal-add-menu').classList.toggle('hidden'); }
+function closeCalAddMenu() { document.getElementById('cal-add-menu').classList.add('hidden'); }
+
+// 開いているドロップダウンの外側をクリックしたら閉じる
+document.addEventListener('click', (e) => {
+  const masterWrapper = document.getElementById('master-nav-wrapper');
+  if (masterWrapper && !masterWrapper.contains(e.target)) closeMasterMenu();
+  const calAddWrapper = document.getElementById('cal-add-menu-wrapper');
+  if (calAddWrapper && !calAddWrapper.contains(e.target)) closeCalAddMenu();
+});
 
 // ════════════════════════════════════════════════════════
 //  スケジュール計算（定期パターン + dispatch_daysの例外をマージ）
@@ -532,6 +567,22 @@ function buildCalVtabs() {
     cSel.innerHTML += `<option value="${c.name}" ${c.name === current ? 'selected' : ''}>${c.name}</option>`;
   });
   calCompanyFilter = cSel.value;
+  updateCalFilterIndicator();
+}
+
+// 絞り込みパネルの開閉（初期状態は閉じておき、カレンダー本体を早く見せる）
+function toggleCalFilters() {
+  const panel = document.getElementById('cal-filters');
+  panel.classList.toggle('hidden');
+  document.getElementById('cal-filter-toggle-icon').textContent = panel.classList.contains('hidden') ? '▼' : '▲';
+}
+
+// 絞り込みパネルを閉じていても、何か絞り込み中であることが分かるように●印を出す
+function updateCalFilterIndicator() {
+  const dot = document.getElementById('cal-filter-active-dot');
+  if (!dot) return;
+  const active = (calVehicleFilter !== 'all') || !!calCompanyFilter;
+  dot.classList.toggle('hidden', !active);
 }
 
 async function changeMonth(diff) {

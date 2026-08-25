@@ -56,15 +56,22 @@
 
   <div id="app" class="hidden">
     <nav class="no-print bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div class="max-w-4xl mx-auto flex justify-between items-stretch text-center text-sm overflow-x-auto">
+      <div class="max-w-4xl mx-auto flex justify-between items-stretch text-center text-sm">
         <button onclick="switchTab('today')"     id="tab-today"     class="w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap">本日</button>
         <button onclick="switchTab('calendar')"  id="tab-calendar"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">カレンダー</button>
         <button onclick="switchTab('records')"   id="tab-records"   class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">実績一覧</button>
-        <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">取引先</button>
-        <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">車両</button>
-        <button onclick="switchTab('checks')"    id="tab-checks"    class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">月次点検</button>
-        <button onclick="switchTab('drivers')"   id="tab-drivers"   class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">ドライバー</button>
-        <button onclick="doLogout()" class="px-3 py-4 text-gray-300 hover:text-red-500 whitespace-nowrap" title="ログアウト">⎋</button>
+        <div class="relative w-full" id="master-nav-wrapper">
+          <button onclick="toggleMasterMenu()" id="tab-master" class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap flex items-center justify-center gap-1">
+            <span>マスタ管理</span><span class="text-[9px]">▼</span>
+          </button>
+          <div id="master-menu" class="hidden absolute right-0 top-full w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50 text-left">
+            <button onclick="switchTab('companies')" id="tab-companies" class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800">取引先</button>
+            <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">車両</button>
+            <button onclick="switchTab('checks')"    id="tab-checks"    class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">月次点検</button>
+            <button onclick="switchTab('drivers')"   id="tab-drivers"   class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">ドライバー</button>
+          </div>
+        </div>
+        <button onclick="doLogout()" class="px-3 py-4 text-gray-300 hover:text-red-500 whitespace-nowrap shrink-0" title="ログアウト">⎋</button>
       </div>
     </nav>
 
@@ -120,25 +127,35 @@
             <span id="calendar-month-title" class="text-lg font-bold"></span>
             <button onclick="changeMonth(1)"  class="no-print px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
           </div>
-          <div class="flex items-center justify-between gap-2 mb-3">
-            <div id="cal-freshness" class="text-[10px] text-gray-500 leading-tight"></div>
-            <button id="cal-print-btn" onclick="printCalendar()" class="no-print text-[11px] font-bold px-2.5 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 transition shrink-0">🖨 印刷する</button>
+          <div class="mb-3">
+            <div id="cal-freshness" class="text-[10px] text-gray-500 leading-tight mb-1.5"></div>
+            <div class="flex items-center justify-end gap-1.5 no-print">
+              <button id="cal-print-btn" onclick="printCalendar()" class="text-[11px] font-bold px-2.5 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 transition">🖨 印刷する</button>
+              <div class="relative" id="cal-add-menu-wrapper">
+                <button onclick="toggleCalAddMenu()" class="text-[11px] font-bold px-2.5 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition flex items-center gap-1">
+                  <span>＋ 追加</span><span class="text-[8px]">▼</span>
+                </button>
+                <div id="cal-add-menu" class="hidden absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 text-left">
+                  <button onclick="closeCalAddMenu(); openAddScheduleModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50">📝 個別入力</button>
+                  <button onclick="closeCalAddMenu(); openExcelImportModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 border-t border-gray-100">📊 エクセルで一括登録</button>
+                  <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" onclick="closeCalAddMenu()" class="block w-full text-left px-3 py-2.5 text-xs text-indigo-600 hover:bg-gray-50 border-t border-gray-100">⬇️ テンプレートをダウンロード</a>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="grid grid-cols-2 gap-2 mb-1.5 no-print">
-            <button onclick="openAddScheduleModal()" class="text-xs font-bold px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition flex items-center justify-center gap-1.5">
-              <span>📝</span><span>個別入力</span>
+          <div class="mb-2 no-print">
+            <button onclick="toggleCalFilters()" id="cal-filter-toggle-btn" class="text-[11px] text-gray-500 hover:text-slate-800 flex items-center gap-1.5">
+              <span>🔍 絞り込み</span>
+              <span id="cal-filter-active-dot" class="hidden w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+              <span id="cal-filter-toggle-icon" class="text-[9px]">▼</span>
             </button>
-            <button onclick="openExcelImportModal()" class="text-xs font-bold px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-100 transition flex items-center justify-center gap-1.5">
-              <span>📊</span><span>エクセルで一括登録</span>
-            </button>
-          </div>
-          <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" class="no-print block text-center text-[11px] text-indigo-600 underline mb-3">⬇️ エクセル取込用テンプレートをダウンロード</a>
-          <div class="vtab-bar mb-2 no-print" id="cal-vtab-bar"></div>
-          <div class="mb-3 no-print">
-            <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
-              class="w-full border p-2 rounded text-sm bg-gray-50">
-              <option value="">すべての会社</option>
-            </select>
+            <div id="cal-filters" class="hidden mt-2 space-y-2">
+              <div class="vtab-bar" id="cal-vtab-bar"></div>
+              <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
+                class="w-full border p-2 rounded text-sm bg-gray-50">
+                <option value="">すべての会社</option>
+              </select>
+            </div>
           </div>
           <div class="grid grid-cols-7 gap-1 text-center font-bold text-xs text-gray-400 mb-1">
             <div class="text-red-400">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-400">土</div>
@@ -187,7 +204,7 @@
           <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">取引先マスタ</h2>
           <button onclick="openCompanyModal()" class="bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-slate-900">＋ 追加</button>
         </div>
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div class="space-y-3">
             <h3 class="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded">📅 定期便</h3>
             <div id="companies-regular" class="space-y-2"></div>
