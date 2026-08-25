@@ -188,8 +188,8 @@ function switchTab(tabId) {
   activeTab = tabId;
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.getElementById(`view-${tabId}`).classList.remove('hidden');
-  document.querySelectorAll('nav button[id^="tab-"]').forEach(btn => btn.className = 'w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap');
-  document.getElementById(`tab-${tabId}`).className = 'w-full py-4 px-2 text-blue-600 font-bold border-b-2 border-blue-600 whitespace-nowrap';
+  document.querySelectorAll('nav button[id^="tab-"]').forEach(btn => btn.className = 'w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap');
+  document.getElementById(`tab-${tabId}`).className = 'w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
   if (tabId === 'records') loadRecordsView();
 }
 
@@ -262,11 +262,11 @@ function renderAlerts() {
       if (days <= 60) {
         count++;
         const cls = days < 0 ? 'bg-red-100 border-red-200 text-red-700' : 'bg-orange-50 border-orange-200 text-orange-700';
-        alerts.innerHTML += `<div class="text-xs p-3 rounded-xl border ${cls} flex justify-between items-center"><span>⚠️ <strong>${v.name}</strong> 車検${days < 0 ? '期限切れ' : `まであと${days}日`}</span><span class="font-bold">${v.shaken_date}</span></div>`;
+        alerts.innerHTML += `<div class="text-xs p-3 rounded-md border ${cls} flex justify-between items-center"><span>⚠️ <strong>${v.name}</strong> 車検${days < 0 ? '期限切れ' : `まであと${days}日`}</span><span class="font-bold">${v.shaken_date}</span></div>`;
       }
     }
   });
-  if (count === 0) alerts.innerHTML = `<div class="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-xl">✅ 車検アラートなし（60日以内の期限切れなし）</div>`;
+  if (count === 0) alerts.innerHTML = `<div class="text-xs text-green-700 bg-green-50 border border-green-200 p-3 rounded-md">✅ 車検アラートなし（60日以内の期限切れなし）</div>`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -305,7 +305,7 @@ function renderFinalList() {
   if (assignedIds.size > 0) {
     const chips = [...assignedIds].map(did => {
       const drv = db.drivers.find(d => String(d.id) === did);
-      return drv ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">👤 ${drv.name}</span>` : '';
+      return drv ? `<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-medium bg-blue-50 text-blue-700 border border-blue-100">👤 ${drv.name}</span>` : '';
     }).join('');
     container.innerHTML += `<div class="flex flex-wrap gap-2 pb-3 border-b border-dashed border-gray-200"><span class="text-xs text-gray-400 self-center">本日のドライバー：</span>${chips}</div>`;
   }
@@ -329,7 +329,7 @@ function renderFinalList() {
           ${s.memo ? `<span class="text-xs text-blue-500 ml-1">📝 ${s.memo}</span>` : ''}
           <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v ? v.name : '車両未定'}${drv ? ' ／ 👤 ' + drv.name : ''}</span>
         </div>
-        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs px-3 py-2 rounded-xl font-bold shadow-sm hover:opacity-90">
+        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-md font-bold hover:bg-slate-900 transition">
           ${hasRecord ? '📝 記録を編集' : '📸 記録する'}
         </button>
       </div>`;
@@ -379,15 +379,15 @@ function renderTodayDispatchBuilder() {
     return o;
   };
   const rowHtml = (item) => `
-    <div class="flex flex-wrap items-center justify-between p-2.5 border rounded-xl gap-2 bg-gray-50/50">
+    <div class="flex flex-wrap items-center justify-between p-2.5 border rounded-md gap-2 bg-gray-50/50">
       <label class="flex items-center gap-2 font-bold text-sm text-gray-900 cursor-pointer select-none min-w-[160px]">
         <input type="checkbox" id="chk-${item.fid}" data-company-id="${item.companyId}" data-name="${item.name}" ${item.isChecked ? 'checked' : ''} class="w-4 h-4 text-blue-600 rounded">
         <div><span>${item.name}</span><span class="block text-[10px] text-gray-400 font-normal">${item.label}</span></div>
       </label>
       <div class="flex items-center gap-2 flex-1 justify-end flex-wrap">
-        <input type="time" id="time-${item.fid}" value="${item.time || ''}" class="border p-1.5 rounded-lg text-xs bg-white w-24">
-        <select id="vec-${item.fid}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[120px]">${vOpts(item.vehicleId)}</select>
-        <select id="drv-${item.fid}" class="border p-1.5 rounded-lg text-xs bg-white max-w-[120px]">${dOpts(item.driverId)}</select>
+        <input type="time" id="time-${item.fid}" value="${item.time || ''}" class="border p-1.5 rounded text-xs bg-white w-24">
+        <select id="vec-${item.fid}" class="border p-1.5 rounded text-xs bg-white max-w-[120px]">${vOpts(item.vehicleId)}</select>
+        <select id="drv-${item.fid}" class="border p-1.5 rounded text-xs bg-white max-w-[120px]">${dOpts(item.driverId)}</select>
       </div>
     </div>`;
 
@@ -522,7 +522,7 @@ function renderCalendar() {
 
     grid.innerHTML += `
       <button onclick="showCalendarDetail(${date})"
-        class="h-16 ${bgCls} border ${borderCls} rounded-lg p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
+        class="h-16 ${bgCls} border ${borderCls} rounded p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
         <span class="text-xs font-bold ${numCls}">${date}</span>
         ${cellBody}
       </button>`;
@@ -562,7 +562,7 @@ function showCalendarDetail(date) {
     const col = getVehicleColor(group.vehicleId === '__none__' ? null : group.vehicleId);
     list.innerHTML += `
       <div class="flex items-center gap-2 mt-3 first:mt-0">
-        <div class="text-xs font-bold px-2.5 py-1 rounded-full shrink-0" style="background:${col.bg};color:${col.text}">🚛 ${gv ? gv.name : '車両未定'}</div>
+        <div class="text-xs font-bold px-2.5 py-1 rounded shrink-0" style="background:${col.bg};color:${col.text}">🚛 ${gv ? gv.name : '車両未定'}</div>
         <div class="flex-1 h-px bg-gray-200"></div>
       </div>`;
 
@@ -580,13 +580,13 @@ function showCalendarDetail(date) {
       const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g, '');
 
       list.innerHTML += `
-        <div class="flex items-center gap-1.5 p-2.5 rounded-lg overflow-x-auto ml-2" style="background:${col.bg}33">
+        <div class="flex items-center gap-1.5 p-2.5 rounded overflow-x-auto ml-2" style="background:${col.bg}33">
           ${badge}${typeBadge}${kindBadges}
           <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
           ${c.memo ? `<span class="text-[10px] text-blue-500 shrink-0">📝${c.memo}</span>` : ''}
-          <select id="${calDrvId}" onchange="updateCalendarDriver('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}',this.value)" class="w-24 border p-1 rounded-lg text-[11px] bg-white shrink-0">${drvOpts}</select>
+          <select id="${calDrvId}" onchange="updateCalendarDriver('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}',this.value)" class="w-24 border p-1 rounded text-[11px] bg-white shrink-0">${drvOpts}</select>
           <span class="text-[10px] text-gray-400 shrink-0">${hasRecord ? '📝記録あり' : '未記録'}</span>
-          <button onclick="openDeliveryModal('${escQ(c.name)}','${fd}')" class="ml-auto text-[10px] font-bold px-2 py-1 rounded-lg ${hasRecord ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-blue-600 text-white'} whitespace-nowrap shrink-0">
+          <button onclick="openDeliveryModal('${escQ(c.name)}','${fd}')" class="ml-auto text-[10px] font-bold px-2 py-1 rounded ${hasRecord ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-800 text-white'} whitespace-nowrap shrink-0">
             ${hasRecord ? '📋 記録を見る/編集' : '📸 記録する'}
           </button>
         </div>`;
@@ -661,8 +661,8 @@ function toggleAsType(type) {
 function updateAsTypeButtons() {
   const dBtn = document.getElementById('as-btn-delivery');
   const pBtn = document.getElementById('as-btn-pickup');
-  dBtn.className = `flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition ${asState.hasDelivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`;
-  pBtn.className = `flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition ${asState.hasPickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`;
+  dBtn.className = `flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition ${asState.hasDelivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`;
+  pBtn.className = `flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition ${asState.hasPickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`;
 }
 
 function changeAsMonth(diff) {
@@ -684,7 +684,7 @@ function renderAsDateGrid() {
     const dow = new Date(asState.year, asState.month - 1, d).getDay();
     const isHol = holidays[fd] !== undefined;
     const textCls = (dow === 0 || isHol) ? 'text-red-400' : dow === 6 ? 'text-blue-400' : 'text-gray-700';
-    grid.innerHTML += `<button type="button" onclick="toggleAsDate('${fd}')" class="h-8 rounded text-xs font-medium transition ${selected ? 'bg-blue-600 text-white' : `${textCls} hover:bg-gray-100`}">${d}</button>`;
+    grid.innerHTML += `<button type="button" onclick="toggleAsDate('${fd}')" class="h-8 rounded text-xs font-medium transition ${selected ? 'bg-slate-800 text-white' : `${textCls} hover:bg-gray-100`}">${d}</button>`;
   }
 }
 function toggleAsDate(fd) {
@@ -696,7 +696,7 @@ function toggleAsDate(fd) {
 function renderAsSelectedDates() {
   const el = document.getElementById('as-selected-dates');
   el.innerHTML = [...asState.selectedDates].sort().map(fd => `
-    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-xs border border-blue-200">
       ${fd.slice(5).replace('-', '/')}
       <button type="button" onclick="toggleAsDate('${fd}')" class="text-blue-400 hover:text-red-500 font-bold">×</button>
     </span>`).join('');
@@ -860,8 +860,8 @@ function renderExcelImportRows() {
       </td>
       <td class="align-top pt-1 px-1">
         <div class="flex gap-1">
-          <button type="button" onclick="toggleExcelImportType(${i},'has_delivery')" class="px-1.5 py-1 rounded-lg border text-[11px] font-bold ${r.has_delivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-300'}">📦納品</button>
-          <button type="button" onclick="toggleExcelImportType(${i},'has_pickup')" class="px-1.5 py-1 rounded-lg border text-[11px] font-bold ${r.has_pickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-300'}">🔄引取</button>
+          <button type="button" onclick="toggleExcelImportType(${i},'has_delivery')" class="px-1.5 py-1 rounded border text-[11px] font-bold ${r.has_delivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-300'}">📦納品</button>
+          <button type="button" onclick="toggleExcelImportType(${i},'has_pickup')" class="px-1.5 py-1 rounded border text-[11px] font-bold ${r.has_pickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-300'}">🔄引取</button>
         </div>
       </td>
       <td class="align-top pt-1 px-1">
@@ -968,20 +968,20 @@ async function loadRecordsView() {
   list.innerHTML = filteredRows.map(r => {
     const v = db.vehicles.find(x => String(x.id) === String(r.vehicleId));
     if (r.rec) {
-      return `<div class="flex items-center gap-2 p-3 bg-white rounded-xl border border-gray-100 shadow-sm text-xs">
+      return `<div class="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200 text-xs">
         <span class="font-mono text-gray-400 shrink-0">${r.date}</span>
         <strong class="text-gray-900">${r.company}</strong>
         <span class="text-gray-400 shrink-0">🚛${v ? v.name : '未定'}</span>
-        <span class="ml-auto text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg font-bold shrink-0">記録済み</span>
+        <span class="ml-auto text-emerald-700 bg-emerald-50 px-2 py-1 rounded font-bold shrink-0">記録済み</span>
         <button onclick="openRecordViewer(${JSON.stringify(r.rec).replace(/"/g, '&quot;')})" class="text-indigo-600 font-bold shrink-0">見る</button>
       </div>`;
     }
-    return `<div class="flex items-center gap-2 p-3 rounded-xl border missing-row shadow-sm text-xs">
+    return `<div class="flex items-center gap-2 p-3 rounded-md border missing-row text-xs">
       <span class="font-mono text-gray-400 shrink-0">${r.date}</span>
       <strong class="text-gray-900">${r.company}</strong>
       <span class="text-gray-400 shrink-0">🚛${v ? v.name : '未定'}</span>
       <span class="ml-auto text-red-600 font-bold shrink-0">未記録</span>
-      <button onclick="openDeliveryModal('${escQ(r.company)}','${r.date}')" class="bg-blue-600 text-white px-2 py-1 rounded-lg font-bold shrink-0">記録する</button>
+      <button onclick="openDeliveryModal('${escQ(r.company)}','${r.date}')" class="bg-slate-800 text-white px-2 py-1 rounded font-bold shrink-0">記録する</button>
     </div>`;
   }).join('');
   updateStatus('success', '集計完了');
@@ -1149,12 +1149,12 @@ function openRecordViewer(rec) {
   const npGrid = document.getElementById('rv-nouhin-photos');
   npGrid.innerHTML = (rec.nouhin_photo_urls || []).length === 0
     ? '<p class="text-xs text-gray-300">写真なし</p>'
-    : rec.nouhin_photo_urls.map(url => `<img src="${url}" onclick="openLightbox('${url}')" class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`).join('');
+    : rec.nouhin_photo_urls.map(url => `<img src="${url}" onclick="openLightbox('${url}')" class="w-20 h-20 object-cover rounded border border-gray-200 cursor-zoom-in hover:opacity-80">`).join('');
 
   const hpGrid = document.getElementById('rv-hikitori-photos');
   hpGrid.innerHTML = (rec.hikitori_photo_urls || []).length === 0
     ? '<p class="text-xs text-gray-300">写真なし</p>'
-    : rec.hikitori_photo_urls.map(url => `<img src="${url}" onclick="openLightbox('${url}')" class="w-20 h-20 object-cover rounded-lg border border-gray-200 cursor-zoom-in hover:opacity-80">`).join('');
+    : rec.hikitori_photo_urls.map(url => `<img src="${url}" onclick="openLightbox('${url}')" class="w-20 h-20 object-cover rounded border border-gray-200 cursor-zoom-in hover:opacity-80">`).join('');
 
   document.getElementById('record-viewer-modal').classList.remove('hidden');
 }
@@ -1171,7 +1171,7 @@ function renderDrivers() {
     const dayBadges = DOW_KEY.map((key, i) => d[key] ? `<span class="inline-block px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700">${DOW_JP[i]}</span>` : '').join('');
     const veh = db.vehicles.find(v => String(v.id) === String(d.vehicle_id));
     list.innerHTML += `
-      <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+      <div class="bg-white p-4 rounded-md border border-gray-200">
         <div class="flex justify-between items-start">
           <div class="flex-1 min-w-0">
             <p class="font-bold text-gray-900">👤 ${d.name}</p>
@@ -1227,7 +1227,7 @@ function renderCompanies() {
   const irregular = db.companies.filter(c => (c.pattern || '').includes('不定期'));
 
   const cardHtml = (c) => `
-    <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-100 text-xs space-y-1">
+    <div class="bg-white p-3 rounded-md border border-gray-200 text-xs space-y-1">
       <div class="flex justify-between items-start gap-1">
         <h4 class="font-bold text-gray-900 text-sm leading-tight">${c.name}</h4>
         <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-blue-500 hover:underline shrink-0">修正</button>
@@ -1286,7 +1286,7 @@ async function submitCompany() {
 function renderVehicles() {
   const list = document.getElementById('vehicles-list');
   list.innerHTML = db.vehicles.map(v => `
-    <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between text-sm">
+    <div class="bg-white p-4 rounded-md border border-gray-200 flex flex-col justify-between text-sm">
       <div><h4 class="font-bold text-gray-900">${v.name}</h4><p class="text-xs text-gray-400">${v.type || '車種未指定'}</p>
         <div class="mt-2 space-y-0.5 text-xs text-gray-600"><p>🛠 車検満了: ${v.shaken_date || '未登録'}</p><p>📄 任意保険: ${v.insurance_date || '未登録'}</p></div>
       </div>
@@ -1478,13 +1478,13 @@ function updateStatus(type, text) {
   if (!toast) return;
   txt.innerText = text;
   if (type === 'loading') {
-    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-yellow-50 text-yellow-800 border border-yellow-200';
+    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded shadow-lg text-sm font-medium bg-yellow-50 text-yellow-800 border border-yellow-200';
     dot.className = 'w-2.5 h-2.5 rounded-full shrink-0 bg-yellow-500 animate-pulse';
   } else if (type === 'success') {
-    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-green-50 text-green-800 border border-green-200';
+    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded shadow-lg text-sm font-medium bg-green-50 text-green-800 border border-green-200';
     dot.className = 'w-2.5 h-2.5 rounded-full shrink-0 bg-green-500';
   } else {
-    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
+    toast.className = 'fixed bottom-6 left-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded shadow-lg text-sm font-medium bg-red-50 text-red-800 border border-red-200';
     dot.className = 'w-2.5 h-2.5 rounded-full shrink-0 bg-red-500';
   }
   toast.style.opacity = '1';

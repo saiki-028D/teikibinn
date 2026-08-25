@@ -15,8 +15,8 @@
     .photo-add-btn { aspect-ratio: 1; border-radius: 8px; border: 2px dashed #cbd5e1; background: #f8fafc; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; font-size: 10px; gap: 3px; }
     .photo-add-btn:hover { border-color: #3b82f6; color: #3b82f6; }
     .photo-add-btn .icon { font-size: 18px; line-height: 1; }
-    .vtab { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1.5px solid #e2e8f0; background: #f8fafc; color: #64748b; cursor: pointer; white-space: nowrap; transition: all .15s; }
-    .vtab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+    .vtab { padding: 6px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; background: #fff; color: #64748b; cursor: pointer; white-space: nowrap; transition: all .15s; }
+    .vtab.active { background: #1e293b; color: #fff; border-color: #1e293b; }
     .vtab-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
     .vtab-bar::-webkit-scrollbar { height: 0; }
     .missing-row { background: #fef2f2 !important; border-color: #fecaca !important; }
@@ -26,39 +26,39 @@
 
   <!-- ══ ログイン画面 ══ -->
   <div id="view-login" class="fixed inset-0 bg-gray-50 z-[200] flex items-center justify-center p-4">
-    <form id="login-form" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 w-full max-w-sm space-y-4">
+    <form id="login-form" class="bg-white p-6 rounded-md border border-gray-200 w-full max-w-sm space-y-4">
       <h1 class="text-lg font-bold text-gray-800 text-center">🚚 車両・配送管理システム</h1>
       <p class="text-xs text-gray-400 text-center">社内共有のログイン情報を入力してください</p>
       <div>
         <label class="block text-xs text-gray-500 mb-1">ID</label>
-        <input type="text" id="login-email" required class="w-full border p-2 rounded-lg text-sm" autocomplete="username">
+        <input type="text" id="login-email" required class="w-full border p-2 rounded text-sm" autocomplete="username">
       </div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">パスワード</label>
-        <input type="password" id="login-password" required class="w-full border p-2 rounded-lg text-sm" autocomplete="current-password">
+        <input type="password" id="login-password" required class="w-full border p-2 rounded text-sm" autocomplete="current-password">
       </div>
       <p id="login-error" class="text-xs text-red-600 hidden"></p>
-      <button type="submit" id="login-submit" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition">ログイン</button>
+      <button type="submit" id="login-submit" class="w-full bg-slate-800 text-white p-3 rounded-md font-bold hover:bg-slate-900 transition">ログイン</button>
     </form>
   </div>
 
   <!-- トースト通知 -->
-  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg text-sm font-medium transition-all duration-300 opacity-0 pointer-events-none"
+  <div id="toast" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-2.5 rounded shadow-lg text-sm font-medium transition-all duration-300 opacity-0 pointer-events-none"
     style="transform: translate(-50%, 16px); transition: opacity .3s, transform .3s;">
     <span id="toast-dot" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
     <span id="status-text">読み込み中...</span>
   </div>
 
   <div id="app" class="hidden">
-    <nav class="bg-white shadow-sm sticky top-0 z-50">
+    <nav class="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div class="max-w-4xl mx-auto flex justify-between items-stretch text-center text-sm overflow-x-auto">
-        <button onclick="switchTab('today')"     id="tab-today"     class="w-full py-4 px-2 text-blue-600 font-bold border-b-2 border-blue-600 whitespace-nowrap">本日</button>
-        <button onclick="switchTab('calendar')"  id="tab-calendar"  class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">カレンダー</button>
-        <button onclick="switchTab('records')"   id="tab-records"   class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">実績一覧</button>
-        <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">取引先</button>
-        <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">車両</button>
-        <button onclick="switchTab('checks')"    id="tab-checks"    class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">月次点検</button>
-        <button onclick="switchTab('drivers')"   id="tab-drivers"   class="w-full py-4 px-2 text-gray-600 hover:text-blue-600 whitespace-nowrap">ドライバー</button>
+        <button onclick="switchTab('today')"     id="tab-today"     class="w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap">本日</button>
+        <button onclick="switchTab('calendar')"  id="tab-calendar"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">カレンダー</button>
+        <button onclick="switchTab('records')"   id="tab-records"   class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">実績一覧</button>
+        <button onclick="switchTab('companies')" id="tab-companies" class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">取引先</button>
+        <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">車両</button>
+        <button onclick="switchTab('checks')"    id="tab-checks"    class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">月次点検</button>
+        <button onclick="switchTab('drivers')"   id="tab-drivers"   class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">ドライバー</button>
         <button onclick="doLogout()" class="px-3 py-4 text-gray-300 hover:text-red-500 whitespace-nowrap" title="ログアウト">⎋</button>
       </div>
     </nav>
@@ -71,7 +71,7 @@
       <section id="view-today" class="tab-content space-y-4">
         <div id="today-alerts" class="space-y-2"></div>
 
-        <div class="bg-white rounded-xl shadow-sm border border-gray-100">
+        <div class="bg-white rounded-md border border-gray-200">
           <div class="flex items-center justify-between px-4 pt-4 pb-2 border-b">
             <h2 class="text-base font-bold text-gray-700">✅ 本日の確定スケジュール</h2>
             <span id="today-date-display" class="text-xs text-gray-400"></span>
@@ -82,16 +82,16 @@
           <div id="today-final-list" class="p-4 space-y-3 min-h-[60px]"></div>
         </div>
 
-        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3">
+        <div class="bg-white p-4 rounded-md border border-gray-200 space-y-3">
           <div class="flex items-center justify-between border-b pb-2">
             <h2 class="text-base font-bold text-gray-700">🚛 本日の運行計画（チェック・設定）</h2>
-            <button onclick="openAddScheduleModal(todayStr)" class="text-xs font-bold px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition whitespace-nowrap">＋ 便を追加</button>
+            <button onclick="openAddScheduleModal(todayStr)" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition whitespace-nowrap">＋ 便を追加</button>
           </div>
           <p class="text-xs text-gray-400">※基本パターンが自動でチェックされています。不要な便はチェックを外してください。</p>
           <div id="today-dispatch-selector" class="space-y-2"></div>
 
           <div class="text-right">
-            <button onclick="toggleOtherCompanies()" id="btn-toggle-others" class="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-2 rounded-lg font-medium transition">
+            <button onclick="toggleOtherCompanies()" id="btn-toggle-others" class="text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 px-3 py-2 rounded font-medium transition">
               ＋ 他の曜日の取引先も表示
             </button>
           </div>
@@ -99,7 +99,7 @@
             <div id="today-dispatch-selector-others-list" class="space-y-2"></div>
           </div>
 
-          <button onclick="saveTodayDispatch()" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold hover:bg-blue-700 transition shadow-sm">
+          <button onclick="saveTodayDispatch()" class="w-full bg-slate-800 text-white p-3 rounded-md font-bold hover:bg-slate-900 transition">
             本日の運行日程を確定・更新する
           </button>
         </div>
@@ -109,19 +109,25 @@
            カレンダー
       ══════════════════════════════════════ -->
       <section id="view-calendar" class="tab-content hidden space-y-4">
-        <div class="bg-white p-4 rounded-xl shadow-sm">
+        <div class="bg-white p-4 rounded-md border border-gray-200">
           <div class="flex justify-between items-center mb-3">
             <button onclick="changeMonth(-1)" class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">◀</button>
             <span id="calendar-month-title" class="text-lg font-bold"></span>
             <button onclick="changeMonth(1)"  class="px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">▶</button>
           </div>
-          <button onclick="openExcelImportModal()" class="w-full mb-3 text-xs font-bold px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition flex items-center justify-center gap-1.5">
-            <span>📊</span><span>エクセルから一括登録</span>
-          </button>
+          <div class="grid grid-cols-2 gap-2 mb-1.5">
+            <button onclick="openAddScheduleModal()" class="text-xs font-bold px-3 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded hover:bg-blue-100 transition flex items-center justify-center gap-1.5">
+              <span>📝</span><span>個別入力</span>
+            </button>
+            <button onclick="openExcelImportModal()" class="text-xs font-bold px-3 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded hover:bg-indigo-100 transition flex items-center justify-center gap-1.5">
+              <span>📊</span><span>エクセルで一括登録</span>
+            </button>
+          </div>
+          <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" class="block text-center text-[11px] text-indigo-600 underline mb-3">⬇️ エクセル取込用テンプレートをダウンロード</a>
           <div class="vtab-bar mb-2" id="cal-vtab-bar"></div>
           <div class="mb-3">
             <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
-              class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+              class="w-full border p-2 rounded text-sm bg-gray-50">
               <option value="">すべての会社</option>
             </select>
           </div>
@@ -131,11 +137,11 @@
           <div id="calendar-grid" class="grid grid-cols-7 gap-1"></div>
         </div>
 
-        <div id="calendar-detail" class="bg-white p-4 rounded-xl shadow-sm hidden">
+        <div id="calendar-detail" class="bg-white p-4 rounded-md border border-gray-200 hidden">
           <div class="flex items-center justify-between mb-3">
             <h3 id="calendar-detail-date" class="font-bold text-blue-600"></h3>
             <div class="flex items-center gap-2">
-              <button id="cal-add-spot-btn" onclick="openAddScheduleModalFromDetail()" class="text-xs font-bold px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">＋ 便を追加</button>
+              <button id="cal-add-spot-btn" onclick="openAddScheduleModalFromDetail()" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition">＋ 便を追加</button>
               <button onclick="document.getElementById('calendar-detail').classList.add('hidden')" class="text-gray-400 text-lg">×</button>
             </div>
           </div>
@@ -148,16 +154,16 @@
       ══════════════════════════════════════ -->
       <section id="view-records" class="tab-content hidden space-y-4">
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">実績一覧</h2>
-        <div class="bg-white p-4 rounded-xl shadow-sm grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-          <div><label class="block text-xs text-gray-500 mb-1">開始日</label><input type="date" id="rec-from" class="w-full border p-2 rounded-lg text-sm"></div>
-          <div><label class="block text-xs text-gray-500 mb-1">終了日</label><input type="date" id="rec-to" class="w-full border p-2 rounded-lg text-sm"></div>
-          <div><label class="block text-xs text-gray-500 mb-1">取引先</label><select id="rec-company" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">すべて</option></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">車両</label><select id="rec-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">すべて</option></select></div>
+        <div class="bg-white p-4 rounded-md border border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
+          <div><label class="block text-xs text-gray-500 mb-1">開始日</label><input type="date" id="rec-from" class="w-full border p-2 rounded text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">終了日</label><input type="date" id="rec-to" class="w-full border p-2 rounded text-sm"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">取引先</label><select id="rec-company" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
+          <div><label class="block text-xs text-gray-500 mb-1">車両</label><select id="rec-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
           <div class="col-span-2 sm:col-span-4">
             <label class="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" id="rec-missing-only" class="w-4 h-4"> 未記録のみ表示</label>
           </div>
           <div class="col-span-2 sm:col-span-4">
-            <button onclick="loadRecordsView()" class="w-full bg-blue-600 text-white p-2.5 rounded-xl font-bold hover:bg-blue-700 transition text-sm">検索する</button>
+            <button onclick="loadRecordsView()" class="w-full bg-slate-800 text-white p-2.5 rounded-md font-bold hover:bg-slate-900 transition text-sm">検索する</button>
           </div>
         </div>
         <div id="records-summary" class="text-xs text-gray-500"></div>
@@ -170,15 +176,15 @@
       <section id="view-companies" class="tab-content hidden space-y-4">
         <div class="flex justify-between items-center">
           <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">取引先マスタ</h2>
-          <button onclick="openCompanyModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 追加</button>
+          <button onclick="openCompanyModal()" class="bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-slate-900">＋ 追加</button>
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div class="space-y-3">
-            <h3 class="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg">📅 定期便</h3>
+            <h3 class="text-xs font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded">📅 定期便</h3>
             <div id="companies-regular" class="space-y-2"></div>
           </div>
           <div class="space-y-3">
-            <h3 class="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded-lg">📋 不定期</h3>
+            <h3 class="text-xs font-bold text-gray-600 bg-gray-100 px-3 py-1.5 rounded">📋 不定期</h3>
             <div id="companies-irregular" class="space-y-2"></div>
           </div>
         </div>
@@ -190,7 +196,7 @@
       <section id="view-vehicles" class="tab-content hidden space-y-4">
         <div class="flex justify-between items-center">
           <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">車両の管理</h2>
-          <button onclick="openVehicleModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 車両を追加</button>
+          <button onclick="openVehicleModal()" class="bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-slate-900">＋ 車両を追加</button>
         </div>
         <div id="vehicles-list" class="grid gap-4 sm:grid-cols-2"></div>
       </section>
@@ -200,18 +206,18 @@
       ══════════════════════════════════════ -->
       <section id="view-checks" class="tab-content hidden space-y-4">
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">月次点検表（26項目）</h2>
-        <div class="bg-white p-4 rounded-xl shadow-sm flex flex-wrap gap-3 items-end">
-          <div><label class="block text-xs text-gray-500 mb-1">対象車両</label><select id="check-vehicle" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">点検年</label><select id="check-year" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">点検月</label><select id="check-month" class="border p-2 rounded-lg text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div class="flex-1 min-w-[160px]"><label class="block text-xs text-gray-500 mb-1">点検者名</label><input type="text" id="check-inspector" placeholder="例: 田中 太郎" class="w-full border p-2 rounded-lg text-sm"></div>
+        <div class="bg-white p-4 rounded-md border border-gray-200 flex flex-wrap gap-3 items-end">
+          <div><label class="block text-xs text-gray-500 mb-1">対象車両</label><select id="check-vehicle" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div><label class="block text-xs text-gray-500 mb-1">点検年</label><select id="check-year" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div><label class="block text-xs text-gray-500 mb-1">点検月</label><select id="check-month" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div class="flex-1 min-w-[160px]"><label class="block text-xs text-gray-500 mb-1">点検者名</label><input type="text" id="check-inspector" placeholder="例: 田中 太郎" class="w-full border p-2 rounded text-sm"></div>
         </div>
-        <div id="check-form-container" class="bg-white rounded-xl shadow-sm p-4 space-y-6"></div>
-        <div class="bg-white p-4 rounded-xl shadow-sm space-y-2">
+        <div id="check-form-container" class="bg-white rounded-md border border-gray-200 p-4 space-y-6"></div>
+        <div class="bg-white p-4 rounded-md border border-gray-200 space-y-2">
           <label class="block text-sm font-medium text-gray-700">特記事項・メモ</label>
-          <textarea id="check-note" class="w-full border p-2 rounded-lg text-sm" rows="3"></textarea>
+          <textarea id="check-note" class="w-full border p-2 rounded text-sm" rows="3"></textarea>
         </div>
-        <button onclick="saveCheckData()" class="w-full bg-green-600 text-white p-3 rounded-xl font-bold hover:bg-green-700 transition shadow-md">点検結果を保存</button>
+        <button onclick="saveCheckData()" class="w-full bg-slate-800 text-white p-3 rounded-md font-bold hover:bg-slate-900 transition">点検結果を保存</button>
       </section>
 
       <!-- ══════════════════════════════════════
@@ -220,7 +226,7 @@
       <section id="view-drivers" class="tab-content hidden space-y-4">
         <div class="flex justify-between items-center">
           <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">ドライバー管理</h2>
-          <button onclick="openDriverModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700">＋ 追加</button>
+          <button onclick="openDriverModal()" class="bg-slate-800 text-white px-4 py-2 rounded text-sm font-medium hover:bg-slate-900">＋ 追加</button>
         </div>
         <div id="drivers-list" class="grid gap-3 sm:grid-cols-2"></div>
       </section>
@@ -229,7 +235,7 @@
 
   <!-- ══ 実績入力モーダル ══ -->
   <div id="delivery-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 my-6 shadow-xl">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
       <div class="flex justify-between items-center border-b pb-2">
         <div>
           <h3 id="delivery-modal-title" class="text-base font-bold text-gray-900">📦 配送完了報告</h3>
@@ -237,7 +243,7 @@
         </div>
         <button onclick="closeDeliveryModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">×</button>
       </div>
-      <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-100 space-y-3">
+      <div class="bg-blue-50/70 p-3 rounded-md border border-blue-100 space-y-3">
         <span class="text-xs font-bold text-blue-900 block border-b border-blue-200 pb-1">🚚 納品の記録</span>
         <div>
           <div class="flex items-center justify-between mb-1">
@@ -249,10 +255,10 @@
         </div>
         <div>
           <label class="block text-[11px] font-bold text-gray-500 mb-1">納品メモ</label>
-          <textarea id="nouhin-memo" placeholder="例: 納品ケース数、受領サインなど" class="w-full border border-gray-200 p-2 rounded-lg text-xs bg-white resize-none" rows="2"></textarea>
+          <textarea id="nouhin-memo" placeholder="例: 納品ケース数、受領サインなど" class="w-full border border-gray-200 p-2 rounded text-xs bg-white resize-none" rows="2"></textarea>
         </div>
       </div>
-      <div class="bg-green-50/70 p-3 rounded-xl border border-green-100 space-y-3">
+      <div class="bg-green-50/70 p-3 rounded-md border border-green-100 space-y-3">
         <span class="text-xs font-bold text-green-900 block border-b border-green-200 pb-1">🔄 引取の記録</span>
         <div>
           <div class="flex items-center justify-between mb-1">
@@ -264,31 +270,31 @@
         </div>
         <div>
           <label class="block text-[11px] font-bold text-gray-500 mb-1">引取メモ</label>
-          <textarea id="hikitori-memo" placeholder="例: 空パレット回収数、持ち帰り資材など" class="w-full border border-gray-200 p-2 rounded-lg text-xs bg-white resize-none" rows="2"></textarea>
+          <textarea id="hikitori-memo" placeholder="例: 空パレット回収数、持ち帰り資材など" class="w-full border border-gray-200 p-2 rounded text-xs bg-white resize-none" rows="2"></textarea>
         </div>
       </div>
       <div>
         <label class="block text-[11px] font-bold text-gray-500 mb-1">記入者（任意）</label>
-        <select id="delivery-saved-by" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
+        <select id="delivery-saved-by" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
       <div class="flex justify-end gap-2 text-sm pt-2 border-t">
-        <button onclick="closeDeliveryModal()" class="px-4 py-2 bg-gray-100 rounded-lg font-medium">キャンセル</button>
-        <button onclick="submitDeliveryReport()" class="px-5 py-2 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition">💾 保存する</button>
+        <button onclick="closeDeliveryModal()" class="px-4 py-2 bg-gray-100 rounded font-medium">キャンセル</button>
+        <button onclick="submitDeliveryReport()" class="px-5 py-2 bg-slate-800 text-white rounded font-bold hover:bg-slate-900 transition">💾 保存する</button>
       </div>
     </div>
   </div>
 
   <!-- 写真拡大 -->
   <div id="photo-lightbox" class="fixed inset-0 bg-black/80 z-[60] hidden flex items-center justify-center p-4" onclick="closeLightbox()">
-    <img id="lightbox-img" src="" class="max-w-full max-h-full rounded-xl">
+    <img id="lightbox-img" src="" class="max-w-full max-h-full rounded-md">
   </div>
 
   <!-- ══ ドライバーモーダル ══ -->
   <div id="driver-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white p-6 rounded-2xl w-full max-w-sm space-y-4">
+    <div class="bg-white p-6 rounded-md w-full max-w-sm space-y-4">
       <h3 class="text-lg font-bold">ドライバーの登録</h3>
       <input type="hidden" id="d-id">
-      <div><label class="block text-xs text-gray-500 mb-1">名前</label><input type="text" id="d-name" placeholder="例: 田中 一郎" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">名前</label><input type="text" id="d-name" placeholder="例: 田中 一郎" class="w-full border p-2 rounded text-sm"></div>
       <div>
         <label class="block text-xs text-gray-500 mb-2">担当曜日（複数選択可）</label>
         <div class="flex gap-2 flex-wrap">
@@ -303,26 +309,26 @@
       </div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">担当車両</label>
-        <select id="d-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
+        <select id="d-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
-      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded text-sm"></div>
       <div class="flex justify-end gap-2 text-sm">
-        <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
-        <button onclick="submitDriver()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
+        <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
+        <button onclick="submitDriver()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
     </div>
   </div>
 
   <!-- ══ 取引先モーダル ══ -->
   <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4">
+    <div class="bg-white p-6 rounded-md w-full max-w-md space-y-4">
       <h3 id="company-modal-title" class="text-lg font-bold">取引先の登録</h3>
       <input type="hidden" id="c-id">
-      <div><label class="block text-xs text-gray-500 mb-1">会社名・取引先名</label><input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded-lg text-sm"></div>
-      <div><label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">会社名・取引先名</label><input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded text-sm"></div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">基本の運行パターン</label>
-        <select id="c-pattern" class="w-full border p-2 rounded-lg text-sm bg-gray-50">
+        <select id="c-pattern" class="w-full border p-2 rounded text-sm bg-gray-50">
           <option value="毎営業日">毎営業日</option>
           <option value="月,木">月・木 固定</option>
           <option value="火,金">火・金 固定</option>
@@ -332,36 +338,36 @@
       </div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">デフォルト車両</label>
-        <select id="c-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
+        <select id="c-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
-      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded-lg text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded text-sm"></div>
       <div class="flex justify-end gap-2 text-sm">
-        <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
-        <button onclick="submitCompany()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
+        <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
+        <button onclick="submitCompany()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
     </div>
   </div>
 
   <!-- ══ 車両モーダル ══ -->
   <div id="vehicle-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white p-6 rounded-2xl w-full max-w-md space-y-4">
+    <div class="bg-white p-6 rounded-md w-full max-w-md space-y-4">
       <h3 id="vehicle-modal-title" class="text-lg font-bold">車両の登録</h3>
       <input type="hidden" id="v-id">
-      <input type="text" id="v-name" placeholder="車両名・ナンバー" class="w-full border p-2 rounded-lg text-sm">
-      <input type="text" id="v-type" placeholder="車種" class="w-full border p-2 rounded-lg text-sm">
-      <div><label class="block text-xs text-gray-500 mb-1">車検満了日</label><input type="date" id="v-shaken" class="w-full border p-2 rounded-lg text-sm"></div>
-      <div><label class="block text-xs text-gray-500 mb-1">任意保険更新日</label><input type="date" id="v-insurance" class="w-full border p-2 rounded-lg text-sm"></div>
-      <input type="text" id="v-note" placeholder="備考" class="w-full border p-2 rounded-lg text-sm">
+      <input type="text" id="v-name" placeholder="車両名・ナンバー" class="w-full border p-2 rounded text-sm">
+      <input type="text" id="v-type" placeholder="車種" class="w-full border p-2 rounded text-sm">
+      <div><label class="block text-xs text-gray-500 mb-1">車検満了日</label><input type="date" id="v-shaken" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-500 mb-1">任意保険更新日</label><input type="date" id="v-insurance" class="w-full border p-2 rounded text-sm"></div>
+      <input type="text" id="v-note" placeholder="備考" class="w-full border p-2 rounded text-sm">
       <div class="flex justify-end gap-2 text-sm">
-        <button onclick="closeVehicleModal()" class="px-4 py-2 bg-gray-100 rounded-lg">キャンセル</button>
-        <button onclick="submitVehicle()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">保存する</button>
+        <button onclick="closeVehicleModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
+        <button onclick="submitVehicle()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
     </div>
   </div>
 
   <!-- ══ 便追加モーダル（複数日付・納品/引取種別対応） ══ -->
   <div id="add-schedule-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 shadow-xl my-6">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="text-base font-bold text-gray-900">📅 便を追加</h3>
         <button onclick="closeAddScheduleModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">×</button>
@@ -369,15 +375,15 @@
 
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-1">① 取引先名 <span class="text-red-400">*</span></label>
-        <input type="text" id="as-name" placeholder="例: ○○工業" list="as-name-list" class="w-full border p-2 rounded-lg text-sm" oninput="onAsNameChange()">
+        <input type="text" id="as-name" placeholder="例: ○○工業" list="as-name-list" class="w-full border p-2 rounded text-sm" oninput="onAsNameChange()">
         <datalist id="as-name-list"></datalist>
       </div>
 
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-2">② 種別（複数選択可）</label>
         <div class="flex gap-3">
-          <button type="button" id="as-btn-delivery" onclick="toggleAsType('delivery')" class="flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition border-gray-200 text-gray-400">📦 納品</button>
-          <button type="button" id="as-btn-pickup" onclick="toggleAsType('pickup')" class="flex-1 py-2.5 rounded-xl border-2 text-sm font-bold transition border-gray-200 text-gray-400">🔄 引取</button>
+          <button type="button" id="as-btn-delivery" onclick="toggleAsType('delivery')" class="flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">📦 納品</button>
+          <button type="button" id="as-btn-pickup" onclick="toggleAsType('pickup')" class="flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">🔄 引取</button>
         </div>
       </div>
 
@@ -398,34 +404,34 @@
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs font-bold text-gray-500 mb-1">④ 出発時刻</label>
-          <input type="time" id="as-time" class="w-full border p-2 rounded-lg text-sm">
+          <input type="time" id="as-time" class="w-full border p-2 rounded text-sm">
         </div>
         <div>
           <label class="block text-xs font-bold text-gray-500 mb-1">⑤ 車両</label>
-          <select id="as-vehicle" class="w-full border p-2 rounded-lg text-sm bg-gray-50" onchange="onAsVehicleChange()"><option value="">-- 選択 --</option></select>
+          <select id="as-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50" onchange="onAsVehicleChange()"><option value="">-- 選択 --</option></select>
         </div>
       </div>
 
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-1">⑥ ドライバー <span class="text-gray-300 font-normal">（未選択時はマスタから自動セット）</span></label>
-        <select id="as-driver" class="w-full border p-2 rounded-lg text-sm bg-gray-50"><option value="">-- 自動 --</option></select>
+        <select id="as-driver" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 自動 --</option></select>
       </div>
 
       <div>
         <label class="block text-xs font-bold text-gray-500 mb-1">⑦ メモ <span class="text-gray-300 font-normal">（確定スケジュールに表示）</span></label>
-        <input type="text" id="as-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded-lg text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddSchedule()}">
+        <input type="text" id="as-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddSchedule()}">
       </div>
 
       <div class="flex gap-2 pt-2 border-t">
-        <button onclick="closeAddScheduleModal()" class="flex-1 py-2.5 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200">キャンセル</button>
-        <button onclick="submitAddSchedule()" class="flex-[2] px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition">✅ 追加する</button>
+        <button onclick="closeAddScheduleModal()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
+        <button onclick="submitAddSchedule()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ 追加する</button>
       </div>
     </div>
   </div>
 
   <!-- ══ エクセル一括登録モーダル ══ -->
   <div id="excel-import-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-lg space-y-4 shadow-xl my-6">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-lg space-y-4 my-6">
       <div class="flex justify-between items-center border-b pb-2">
         <h3 class="text-base font-bold text-gray-900">📊 エクセルから一括登録</h3>
         <button onclick="closeExcelImportModal()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">×</button>
@@ -435,7 +441,7 @@
       <div id="excel-import-step-upload">
         <p class="text-xs text-gray-500 mb-2">指定の様式で作成したエクセルファイルを選んでください。取引先から届いたPDF・FAXの内容を、このテンプレートに転記してからお使いください。</p>
         <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" class="inline-flex items-center gap-1 text-xs font-bold text-indigo-700 underline mb-3">⬇️ テンプレートをダウンロード</a>
-        <label class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-indigo-200 rounded-xl py-8 cursor-pointer hover:bg-indigo-50 transition">
+        <label class="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-indigo-200 rounded-md py-8 cursor-pointer hover:bg-indigo-50 transition">
           <span class="text-2xl">📎</span>
           <span class="text-sm font-bold text-indigo-700">エクセルファイルを選択</span>
           <input type="file" id="excel-import-file-input" accept=".xlsx,.xls" class="hidden" onchange="handleExcelImportFileSelect(event)">
@@ -451,7 +457,7 @@
 
       <!-- STEP 3: 確認・編集 -->
       <div id="excel-import-step-review" class="hidden space-y-3">
-        <div class="max-h-[45vh] overflow-y-auto border rounded-xl">
+        <div class="max-h-[45vh] overflow-y-auto border rounded-md">
           <table class="w-full text-xs">
             <thead class="bg-gray-50 sticky top-0">
               <tr class="text-gray-500">
@@ -468,8 +474,8 @@
         <p class="text-[11px] text-gray-400 leading-relaxed">⚠️ 内容がおかしい行（黄色でハイライト）は特にご確認ください。日付・取引先・種別・メモはこの画面で直接修正できます。チェックを外した行は登録されません。</p>
 
         <div class="flex gap-2 pt-2 border-t">
-          <button onclick="closeExcelImportModal()" class="flex-1 py-2.5 bg-gray-100 rounded-xl text-sm font-medium hover:bg-gray-200">キャンセル</button>
-          <button onclick="submitExcelImport()" class="flex-[2] px-6 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition">✅ この内容でカレンダーに反映</button>
+          <button onclick="closeExcelImportModal()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
+          <button onclick="submitExcelImport()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ この内容でカレンダーに反映</button>
         </div>
       </div>
     </div>
@@ -477,7 +483,7 @@
 
   <!-- ══ 記録閲覧モーダル ══ -->
   <div id="record-viewer-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-2xl w-full max-w-md space-y-4 my-6 shadow-xl">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
       <div class="flex justify-between items-center border-b pb-2">
         <div>
           <h3 id="rv-title" class="text-base font-bold text-gray-900"></h3>
@@ -485,20 +491,20 @@
         </div>
         <button onclick="closeRecordViewer()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2">×</button>
       </div>
-      <div class="bg-blue-50/70 p-3 rounded-xl border border-blue-100 space-y-2">
+      <div class="bg-blue-50/70 p-3 rounded-md border border-blue-100 space-y-2">
         <span class="text-xs font-bold text-blue-900 block border-b border-blue-200 pb-1">🚚 納品の記録</span>
         <div class="flex gap-2 flex-wrap" id="rv-nouhin-photos"></div>
         <p class="text-xs text-gray-500 font-medium mt-1">メモ：</p>
-        <p id="rv-nouhin-memo" class="text-xs text-gray-700 bg-white p-2 rounded-lg border border-blue-100 min-h-[36px]"></p>
+        <p id="rv-nouhin-memo" class="text-xs text-gray-700 bg-white p-2 rounded border border-blue-100 min-h-[36px]"></p>
       </div>
-      <div class="bg-green-50/70 p-3 rounded-xl border border-green-100 space-y-2">
+      <div class="bg-green-50/70 p-3 rounded-md border border-green-100 space-y-2">
         <span class="text-xs font-bold text-green-900 block border-b border-green-200 pb-1">🔄 引取の記録</span>
         <div class="flex gap-2 flex-wrap" id="rv-hikitori-photos"></div>
         <p class="text-xs text-gray-500 font-medium mt-1">メモ：</p>
-        <p id="rv-hikitori-memo" class="text-xs text-gray-700 bg-white p-2 rounded-lg border border-green-100 min-h-[36px]"></p>
+        <p id="rv-hikitori-memo" class="text-xs text-gray-700 bg-white p-2 rounded border border-green-100 min-h-[36px]"></p>
       </div>
       <div class="flex justify-end pt-2 border-t">
-        <button onclick="closeRecordViewer()" class="px-4 py-2 bg-gray-100 rounded-lg text-sm font-medium">閉じる</button>
+        <button onclick="closeRecordViewer()" class="px-4 py-2 bg-gray-100 rounded text-sm font-medium">閉じる</button>
       </div>
     </div>
   </div>
