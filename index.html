@@ -24,6 +24,9 @@
       .no-print { display: none !important; }
       body { background: #fff; }
       main { max-width: 100% !important; padding: 0 !important; }
+      /* カレンダーの枠線は画面上はborder-gray-100(薄いグレー)だが、印刷すると
+         さらに薄く見えてマス目が分かりにくくなるため、印刷時だけ濃い色に強制する */
+      #calendar-grid > button { border-color: #475569 !important; border-width: 1px !important; }
     }
   </style>
 </head>
@@ -35,8 +38,8 @@
       <h1 class="text-lg font-bold text-gray-800 text-center">🚚 車両・配送管理システム</h1>
       <p class="text-xs text-gray-400 text-center">社内共有のログイン情報を入力してください</p>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">ID</label>
-        <input type="text" id="login-email" required class="w-full border p-2 rounded text-sm" autocomplete="username">
+        <label class="block text-xs text-gray-500 mb-1">メールアドレス</label>
+        <input type="email" id="login-email" required class="w-full border p-2 rounded text-sm" autocomplete="username">
       </div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">パスワード</label>
@@ -122,6 +125,19 @@
       ══════════════════════════════════════ -->
       <section id="view-calendar" class="tab-content hidden space-y-4">
         <div class="bg-white p-4 rounded-md border border-gray-200">
+          <div class="flex items-center justify-end gap-1.5 no-print mb-3">
+            <button id="cal-print-btn" onclick="printCalendar()" class="text-[11px] font-bold px-2.5 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 transition">🖨 印刷する</button>
+            <div class="relative" id="cal-add-menu-wrapper">
+              <button onclick="toggleCalAddMenu()" class="text-[11px] font-bold px-2.5 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition flex items-center gap-1">
+                <span>＋ 追加</span><span class="text-[8px]">▼</span>
+              </button>
+              <div id="cal-add-menu" class="hidden absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 text-left">
+                <button onclick="closeCalAddMenu(); openAddScheduleModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50">📝 個別入力</button>
+                <button onclick="closeCalAddMenu(); openExcelImportModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 border-t border-gray-100">📊 エクセルで一括登録</button>
+                <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" onclick="closeCalAddMenu()" class="block w-full text-left px-3 py-2.5 text-xs text-indigo-600 hover:bg-gray-50 border-t border-gray-100">⬇️ テンプレートをダウンロード</a>
+              </div>
+            </div>
+          </div>
           <div class="flex justify-between items-center mb-3">
             <button onclick="changeMonth(-1)" class="no-print px-3 py-1 bg-gray-100 rounded hover:bg-gray-200 text-sm">◀</button>
             <span id="calendar-month-title" class="text-lg font-bold"></span>
@@ -129,19 +145,6 @@
           </div>
           <div class="mb-3">
             <div id="cal-freshness" class="text-[10px] text-gray-500 leading-tight mb-1.5"></div>
-            <div class="flex items-center justify-end gap-1.5 no-print">
-              <button id="cal-print-btn" onclick="printCalendar()" class="text-[11px] font-bold px-2.5 py-1.5 bg-white border border-gray-300 rounded hover:bg-gray-50 transition">🖨 印刷する</button>
-              <div class="relative" id="cal-add-menu-wrapper">
-                <button onclick="toggleCalAddMenu()" class="text-[11px] font-bold px-2.5 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition flex items-center gap-1">
-                  <span>＋ 追加</span><span class="text-[8px]">▼</span>
-                </button>
-                <div id="cal-add-menu" class="hidden absolute right-0 top-full mt-1 w-56 bg-white border border-gray-200 rounded-md shadow-lg z-50 text-left">
-                  <button onclick="closeCalAddMenu(); openAddScheduleModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50">📝 個別入力</button>
-                  <button onclick="closeCalAddMenu(); openExcelImportModal()" class="block w-full text-left px-3 py-2.5 text-xs text-gray-700 hover:bg-gray-50 border-t border-gray-100">📊 エクセルで一括登録</button>
-                  <a href="/schedule_import_template.xlsx" download="配送スケジュール_取込用テンプレート.xlsx" onclick="closeCalAddMenu()" class="block w-full text-left px-3 py-2.5 text-xs text-indigo-600 hover:bg-gray-50 border-t border-gray-100">⬇️ テンプレートをダウンロード</a>
-                </div>
-              </div>
-            </div>
           </div>
           <div class="mb-2 no-print">
             <button onclick="toggleCalFilters()" id="cal-filter-toggle-btn" class="text-[11px] text-gray-500 hover:text-slate-800 flex items-center gap-1.5">
@@ -154,6 +157,10 @@
               <select id="cal-company-filter" onchange="calCompanyFilter=this.value; renderCalendar()"
                 class="w-full border p-2 rounded text-sm bg-gray-50">
                 <option value="">すべての会社</option>
+              </select>
+              <select id="cal-driver-filter" onchange="calDriverFilter=this.value; renderCalendar()"
+                class="w-full border p-2 rounded text-sm bg-gray-50">
+                <option value="">すべてのドライバー</option>
               </select>
             </div>
           </div>
@@ -324,13 +331,13 @@
       <div>
         <label class="block text-xs text-gray-500 mb-2">担当曜日（複数選択可）</label>
         <div class="flex gap-2 flex-wrap">
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-mon" class="accent-blue-600">月</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-tue" class="accent-blue-600">火</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-wed" class="accent-blue-600">水</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-thu" class="accent-blue-600">木</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-fri" class="accent-blue-600">金</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sat" class="accent-blue-600">土</label>
-          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sun" class="accent-blue-600">日</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-mon" class="accent-slate-800">月</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-tue" class="accent-slate-800">火</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-wed" class="accent-slate-800">水</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-thu" class="accent-slate-800">木</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-fri" class="accent-slate-800">金</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sat" class="accent-slate-800">土</label>
+          <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-sun" class="accent-slate-800">日</label>
         </div>
       </div>
       <div>
@@ -346,28 +353,57 @@
   </div>
 
   <!-- ══ 取引先モーダル ══ -->
-  <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-white p-6 rounded-md w-full max-w-md space-y-4">
+  <div id="company-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
+    <div class="bg-white p-6 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
       <h3 id="company-modal-title" class="text-lg font-bold">取引先の登録</h3>
       <input type="hidden" id="c-id">
       <div><label class="block text-xs text-gray-500 mb-1">会社名・取引先名</label><input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded text-sm"></div>
-      <div><label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded text-sm"></div>
-      <div>
-        <label class="block text-xs text-gray-500 mb-1">基本の運行パターン</label>
-        <select id="c-pattern" class="w-full border p-2 rounded text-sm bg-gray-50">
-          <option value="毎営業日">毎営業日</option>
-          <option value="月,木">月・木 固定</option>
-          <option value="火,金">火・金 固定</option>
-          <option value="水">水曜 固定</option>
-          <option value="不定期・かんばん次第">不定期・かんばん次第</option>
-        </select>
+
+      <label class="flex items-center gap-2 text-xs text-gray-600 -mb-1">
+        <input type="checkbox" id="c-irregular" class="w-4 h-4" onchange="onCompanyIrregularToggle()">
+        不定期・かんばん次第（曜日を固定しない）
+      </label>
+
+      <div id="c-regular-fields" class="space-y-3 border border-gray-100 bg-gray-50/60 rounded-md p-3">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="block text-xs font-bold text-gray-500">曜日（複数選択可）</label>
+            <button type="button" onclick="setCompanyWeekdays()" class="text-[11px] text-indigo-600 underline">月〜金をまとめて選択</button>
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-mon" class="accent-slate-800">月</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-tue" class="accent-slate-800">火</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-wed" class="accent-slate-800">水</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-thu" class="accent-slate-800">木</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-fri" class="accent-slate-800">金</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-sat" class="accent-slate-800">土</label>
+            <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="c-sun" class="accent-slate-800">日</label>
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1">頻度</label>
+          <div class="flex gap-3">
+            <label class="flex items-center gap-1.5 text-sm"><input type="radio" name="c-frequency" value="毎週" id="c-freq-weekly" checked onchange="onCompanyFrequencyChange()">毎週</label>
+            <label class="flex items-center gap-1.5 text-sm"><input type="radio" name="c-frequency" value="隔週" id="c-freq-biweekly" onchange="onCompanyFrequencyChange()">隔週</label>
+          </div>
+        </div>
+        <div id="c-biweekly-anchor-wrap" class="hidden">
+          <label class="block text-xs font-bold text-gray-500 mb-1">基準日 <span class="text-gray-400 font-normal">（この週を配送週とする）</span></label>
+          <input type="date" id="c-biweekly-anchor" class="w-full border p-2 rounded text-sm bg-white">
+        </div>
+        <label class="flex items-center gap-2 text-xs text-gray-600">
+          <input type="checkbox" id="c-exclude-holidays" class="w-4 h-4">
+          祝日は除く
+        </label>
       </div>
+
+      <div><label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded text-sm"></div>
       <div>
         <label class="block text-xs text-gray-500 mb-1">デフォルト車両</label>
         <select id="c-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
       <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded text-sm"></div>
-      <div class="flex justify-end gap-2 text-sm">
+      <div class="flex justify-end gap-2 text-sm pt-2 border-t">
         <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
         <button onclick="submitCompany()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
@@ -451,6 +487,50 @@
       <div class="flex gap-2 pt-2 border-t">
         <button onclick="closeAddScheduleModal()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
         <button onclick="submitAddSchedule()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ 追加する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ 既存の便を編集するモーダル（日付詳細の「✏️ 編集」から開く） ══ -->
+  <div id="cal-entry-edit-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
+      <div class="flex justify-between items-center border-b pb-2">
+        <h3 id="ce-title" class="text-base font-bold text-gray-900 truncate pr-2"></h3>
+        <button onclick="closeCalEntryEdit()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2 shrink-0">×</button>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-2">種別（複数選択可）</label>
+        <div class="flex gap-3">
+          <button type="button" id="ce-btn-delivery" onclick="toggleCeType('delivery')" class="flex-1 py-2 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">📦 納品</button>
+          <button type="button" id="ce-btn-pickup" onclick="toggleCeType('pickup')" class="flex-1 py-2 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">🔄 引取</button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1">出発時刻</label>
+          <input type="time" id="ce-time" class="w-full border p-2 rounded text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-gray-500 mb-1">車両</label>
+          <select id="ce-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 未定 --</option></select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">ドライバー</label>
+        <select id="ce-driver" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 未定 --</option></select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-bold text-gray-500 mb-1">メモ</label>
+        <input type="text" id="ce-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitCalEntryEdit()}">
+      </div>
+
+      <div class="flex gap-2 pt-2 border-t">
+        <button onclick="closeCalEntryEdit()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
+        <button onclick="submitCalEntryEdit()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ 保存する</button>
       </div>
     </div>
   </div>

@@ -64,9 +64,9 @@ create table if not exists companies (
   name                text not null unique,
   default_time        time,
   default_vehicle_id  uuid references vehicles(id) on delete set null,
-  -- pattern: '毎営業日' / '月,木' / '火,金' / '水' / '不定期・かんばん次第' など
-  -- 複数曜日はカンマ区切りの日本語1文字（月,火,水,木,金,土,日）で保持し、
-  -- アプリ側の既存ロジックをそのまま流用できるようにしています。
+  -- pattern: 旧方式（'毎営業日' / '月,木' / '火,金' / '水' / '不定期・かんばん次第' など）。
+  -- 2026-08-25以降、下のmon〜sun等の列に置き換え済み。移行時の参照用に残しているだけで、
+  -- アプリ側は読み書きしません（新規行では初期値のまま放置されます）。
   pattern             text not null default '毎営業日',
   note                text,
   created_at          timestamptz not null default now(),
@@ -74,6 +74,52 @@ create table if not exists companies (
 );
 create trigger trg_companies_updated_at before update on companies
   for each row execute function set_updated_at();
+
+-- ------------------------------------------------------------
+-- 3b. companies拡張：曜日チェック方式＋毎週/隔週対応（2026-08-25）
+--     入力フォームを「基本の運行パターン」プルダウンから、ドライバーマスタと同じ
+--     曜日チェックボックス方式に変更するための列。既存の`pattern`列は残したまま、
+--     こちらが新しい正のデータソースになる。
+-- ------------------------------------------------------------
+alter table companies add column if not exists mon boolean not null default false;
+alter table companies add column if not exists tue boolean not null default false;
+alter table companies add column if not exists wed boolean not null default false;
+alter table companies add column if not exists thu boolean not null default false;
+alter table companies add column if not exists fri boolean not null default false;
+alter table companies add column if not exists sat boolean not null default false;
+alter table companies add column if not exists sun boolean not null default false;
+-- frequency: '毎週' or '隔週'。隔週の場合はbiweekly_anchorが配送週の基準日になる
+-- （anchorの週を配送週として、そこから2週間ごとに配送週が巡ってくる）。
+alter table companies add column if not exists frequency text not null default '毎週';
+do $$ begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'companies_frequency_check'
+  ) then
+    alter table companies add constraint companies_frequency_check check (frequency in ('毎週', '隔週'));
+  end if;
+end $$;
+alter table companies add column if not exists biweekly_anchor date;
+alter table companies add column if not exists exclude_holidays boolean not null default false;
+-- is_irregular: 「不定期・かんばん次第」。true の間は曜日/頻度/祝日設定を無視し、
+-- 自動では表示せず、個別入力・エクセル取込での都度登録のみになる（旧 pattern LIKE '%不定期%' 相当）。
+alter table companies add column if not exists is_irregular boolean not null default false;
+
+-- 既存データの一括移行：pattern列の内容から新しい列を一度だけ埋める。
+-- 新方式に完全移行済みの行（既にmon〜sunのいずれかがtrue、またはis_irregular=trueの行）は対象外にして、
+-- このSQLを再実行しても新方式で登録済みのデータを壊さないようにしている。
+update companies set
+  mon = (pattern = '毎営業日' or pattern like '%月%'),
+  tue = (pattern = '毎営業日' or pattern like '%火%'),
+  wed = (pattern = '毎営業日' or pattern like '%水%'),
+  thu = (pattern = '毎営業日' or pattern like '%木%'),
+  fri = (pattern = '毎営業日' or pattern like '%金%'),
+  sat = false,
+  sun = false,
+  frequency = '毎週',
+  exclude_holidays = (pattern = '毎営業日'),
+  is_irregular = (pattern like '%不定期%')
+where pattern like '%不定期%'
+   or (pattern is not null and pattern <> '' and not (mon or tue or wed or thu or fri or sat or sun or is_irregular));
 
 -- ------------------------------------------------------------
 -- 4. dispatch_days（日ごとの運行：定期便からの変更点＋スポット便のみを保持）

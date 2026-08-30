@@ -29,6 +29,8 @@ let currentYear, currentMonth;
 let confirmedVehicleFilter = 'all';
 let calVehicleFilter = 'all';
 let calCompanyFilter = '';
+let calDriverFilter = '';
+let calCellLastClick = { date: null, time: 0 };
 let activeTab = 'today';
 
 const VEHICLE_COLORS = [
@@ -51,8 +53,7 @@ function getVehicleColor(vehicleId) {
 // ════════════════════════════════════════════════════════
 document.getElementById('login-form').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id = document.getElementById('login-email').value.trim();
-  const email = id.includes('@') ? id : `${id}@${LOGIN_ID_DOMAIN}`;
+  const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const btn = document.getElementById('login-submit');
   const errEl = document.getElementById('login-error');
@@ -61,7 +62,7 @@ document.getElementById('login-form').addEventListener('submit', async (e) => {
   const { error } = await sb.auth.signInWithPassword({ email, password });
   btn.disabled = false; btn.textContent = 'ログイン';
   if (error) {
-    errEl.textContent = 'ログインできませんでした（IDまたはパスワードが違います）';
+    errEl.textContent = 'ログインできませんでした（メールアドレスまたはパスワードが違います）';
     errEl.classList.remove('hidden');
   }
 });
@@ -252,13 +253,35 @@ document.addEventListener('click', (e) => {
 // ════════════════════════════════════════════════════════
 //  スケジュール計算（定期パターン + dispatch_daysの例外をマージ）
 // ════════════════════════════════════════════════════════
-function patternMatchesDate(pattern, dateObj, isHol) {
-  if (!pattern) return false;
-  if (pattern.includes('不定期')) return false;
-  const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-  if (pattern === '毎営業日') return !isHol && !isWeekend;
-  const dow = DOW_JP[dateObj.getDay()];
-  return pattern.split(',').map(s => s.trim()).includes(dow);
+// 隔週判定：基準日（配送週とする週の代表日）から数えて何週間後かを求め、偶数週かどうかで判定。
+// 基準日が未設定の場合はデータ不整合とみなし、安全側（毎週扱い）にフォールバックする。
+function isBiweeklyOnWeek(anchorStr, dateObj) {
+  if (!anchorStr) return true;
+  const anchor = parseDate(anchorStr);
+  const diffDays = Math.round((dateObj - anchor) / 86400000);
+  const diffWeeks = Math.floor(diffDays / 7);
+  return ((diffWeeks % 2) + 2) % 2 === 0;
+}
+
+// 取引先マスタ（曜日チェック＋毎週/隔週＋祝日除く＋不定期）が、指定日に該当するか判定。
+function companyMatchesDate(c, dateObj, isHol) {
+  if (c.is_irregular) return false;
+  if (!c[DOW_KEY[dateObj.getDay()]]) return false;
+  if (c.exclude_holidays && isHol) return false;
+  if (c.frequency === '隔週' && !isBiweeklyOnWeek(c.biweekly_anchor, dateObj)) return false;
+  return true;
+}
+
+// 取引先マスタの運行パターンを人が読みやすい形にする（「毎週 月・木」「隔週 火・祝日除く」等）。
+function formatCompanySchedule(c) {
+  if (c.is_irregular) return '不定期・かんばん次第';
+  const checkedIdx = DOW_KEY.map((k, i) => (c[k] ? i : -1)).filter(i => i >= 0);
+  if (checkedIdx.length === 0) return '曜日未設定';
+  const isWeekdayOnly = checkedIdx.length === 5 && [1, 2, 3, 4, 5].every(i => checkedIdx.includes(i));
+  const dayLabel = isWeekdayOnly ? '月〜金' : checkedIdx.map(i => DOW_JP[i]).join('・');
+  const freqLabel = c.frequency === '隔週' ? '隔週' : '毎週';
+  const holLabel = c.exclude_holidays ? '・祝日除く' : '';
+  return `${freqLabel} ${dayLabel}${holLabel}`;
 }
 
 function autoDriverFor(vehicleId, dateObj) {
@@ -277,7 +300,7 @@ function getScheduledCompaniesForDate(dateObj, cache = dispatchCache, byDate = d
   const list = [];
 
   db.companies.forEach(c => {
-    if (!patternMatchesDate(c.pattern, dateObj, isHol)) return;
+    if (!companyMatchesDate(c, dateObj, isHol)) return;
     const override = cache.get(`${fd}|${c.name}`);
     if (override && override.status === 'skip') return;
     const vehicleId = (override && override.vehicle_id) || c.default_vehicle_id || '';
@@ -411,16 +434,14 @@ function renderTodayDispatchBuilder() {
 
   db.companies.forEach(c => {
     const override = dispatchCache.get(`${todayStr}|${c.name}`);
-    const matchesToday = patternMatchesDate(c.pattern, todayObj, isHol);
-    const isIrregular = (c.pattern || '').includes('不定期');
+    const matchesToday = companyMatchesDate(c, todayObj, isHol);
+    const isIrregular = c.is_irregular;
     const vehicleId = (override && override.vehicle_id) || c.default_vehicle_id || '';
     const time = (override && override.time) || c.default_time || '';
     const driverId = (override && override.driver_id) || autoDriverFor(vehicleId, todayObj) || '';
     let isChecked, label;
     if (override) { isChecked = override.status === 'go'; label = `📅 本日の設定 (${override.status === 'go' ? 'GO' : 'SKIP'})`; }
-    else if (matchesToday) { isChecked = true; label = `パターン: ${c.pattern}`; }
-    else if (isIrregular) { isChecked = false; label = `パターン: ${c.pattern}`; }
-    else { isChecked = false; label = `パターン: ${c.pattern}`; }
+    else { isChecked = matchesToday; label = `パターン: ${formatCompanySchedule(c)}`; }
 
     const item = { fid: 'C_' + c.id, companyId: c.id, name: c.name, time, vehicleId, driverId, isChecked, label };
     if (matchesToday || isIrregular || override) mainItems.push(item);
@@ -567,6 +588,15 @@ function buildCalVtabs() {
     cSel.innerHTML += `<option value="${c.name}" ${c.name === current ? 'selected' : ''}>${c.name}</option>`;
   });
   calCompanyFilter = cSel.value;
+
+  const dSel = document.getElementById('cal-driver-filter');
+  const currentDrv = dSel.value;
+  dSel.innerHTML = '<option value="">すべてのドライバー</option>';
+  db.drivers.forEach(d => {
+    dSel.innerHTML += `<option value="${d.id}" ${String(d.id) === currentDrv ? 'selected' : ''}>${d.name}</option>`;
+  });
+  calDriverFilter = dSel.value;
+
   updateCalFilterIndicator();
 }
 
@@ -581,7 +611,7 @@ function toggleCalFilters() {
 function updateCalFilterIndicator() {
   const dot = document.getElementById('cal-filter-active-dot');
   if (!dot) return;
-  const active = (calVehicleFilter !== 'all') || !!calCompanyFilter;
+  const active = (calVehicleFilter !== 'all') || !!calCompanyFilter || !!calDriverFilter;
   dot.classList.toggle('hidden', !active);
 }
 
@@ -616,6 +646,7 @@ function renderCalendar() {
     let companies = getScheduledCompaniesForDate(dObj);
     if (calVehicleFilter !== 'all') companies = companies.filter(c => String(c.vehicleId) === String(calVehicleFilter));
     if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
+    if (calDriverFilter) companies = companies.filter(c => String(c.driverId) === String(calDriverFilter));
 
     const confirmedCount = companies.filter(c => c.confirmed).length;
     const totalCount = companies.length;
@@ -626,7 +657,7 @@ function renderCalendar() {
     else if (isHol || dow === 0) { bgCls = 'bg-red-50'; numCls = 'text-red-400'; }
     else if (dow === 6) { bgCls = 'bg-sky-50'; numCls = 'text-sky-500'; }
 
-    const isFiltered = calCompanyFilter || calVehicleFilter !== 'all';
+    const isFiltered = calCompanyFilter || calVehicleFilter !== 'all' || calDriverFilter;
     let cellBody = '';
     if (totalCount === 0) {
       cellBody = '<span class="text-[9px] text-gray-200">-</span>';
@@ -649,7 +680,7 @@ function renderCalendar() {
     }
 
     grid.innerHTML += `
-      <button onclick="showCalendarDetail(${date})"
+      <button onclick="handleCalCellClick(${date})"
         class="relative h-16 ${bgCls} border ${borderCls} rounded p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
         ${hasNew ? '<span class="absolute top-0 right-0 text-[8px] font-bold px-1 py-0.5 rounded-bl bg-red-500 text-white leading-none">New</span>' : ''}
         <span class="text-xs font-bold ${numCls}">${date}</span>
@@ -659,6 +690,20 @@ function renderCalendar() {
 }
 
 let calendarDetailDate = '';
+
+// カレンダーのマス目はダブルクリック（スマホではダブルタップ）で日付詳細を開く。
+// ネイティブのdblclickイベントはスマホでズーム操作と競合しやすいため、
+// clickイベントのタイミングを見て手動で2回連続クリックを判定する。
+function handleCalCellClick(date) {
+  const now = Date.now();
+  if (calCellLastClick.date === date && (now - calCellLastClick.time) < 400) {
+    calCellLastClick.date = null;
+    showCalendarDetail(date);
+  } else {
+    calCellLastClick.date = date;
+    calCellLastClick.time = now;
+  }
+}
 
 function showCalendarDetail(date) {
   const detail = document.getElementById('calendar-detail');
@@ -671,6 +716,7 @@ function showCalendarDetail(date) {
   let companies = getScheduledCompaniesForDate(dObj);
   if (calVehicleFilter !== 'all') companies = companies.filter(c => String(c.vehicleId) === String(calVehicleFilter));
   if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
+  if (calDriverFilter) companies = companies.filter(c => String(c.driverId) === String(calDriverFilter));
 
   const list = document.getElementById('calendar-detail-list');
   list.innerHTML = '';
@@ -706,15 +752,16 @@ function showCalendarDetail(date) {
       const rec = recordsByDate.get(fd) && recordsByDate.get(fd).get(c.name);
       const hasRecord = !!rec;
 
-      const drvOpts = '<option value="">-- ドライバー --</option>' + db.drivers.map(d => `<option value="${d.id}" ${String(d.id) === String(c.driverId) ? 'selected' : ''}>${d.name}</option>`).join('');
-      const calDrvId = 'cal-drv-' + fd + '-' + c.name.replace(/[^a-zA-Z0-9]/g, '');
+      const drv = db.drivers.find(d => String(d.id) === String(c.driverId));
 
       list.innerHTML += `
         <div class="flex items-center gap-1.5 p-2.5 rounded overflow-x-auto ml-2" style="background:${col.bg}33">
           ${badge}${typeBadge}${newBadge}${kindBadges}
           <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
+          ${c.time ? `<span class="text-[10px] text-gray-500 shrink-0">${c.time}</span>` : ''}
           ${c.memo ? `<span class="text-[10px] text-blue-500 shrink-0">📝${c.memo}</span>` : ''}
-          <select id="${calDrvId}" onchange="updateCalendarDriver('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}',this.value)" class="w-24 border p-1 rounded text-[11px] bg-white shrink-0">${drvOpts}</select>
+          <span class="text-[10px] text-gray-500 shrink-0">${drv ? '👤' + drv.name : '👤未定'}</span>
+          <button onclick="openCalEntryEdit('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}','${c.driverId || ''}','${c.time || ''}','${escQ(c.memo || '')}',${!!c.hasDelivery},${!!c.hasPickup})" class="text-[10px] font-bold px-2 py-1 rounded bg-white border border-gray-300 hover:bg-gray-50 whitespace-nowrap shrink-0">✏️ 編集</button>
           <span class="text-[10px] text-gray-400 shrink-0">${hasRecord ? '📝記録あり' : '未記録'}</span>
           <button onclick="openDeliveryModal('${escQ(c.name)}','${fd}')" class="ml-auto text-[10px] font-bold px-2 py-1 rounded ${hasRecord ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-800 text-white'} whitespace-nowrap shrink-0">
             ${hasRecord ? '📋 記録を見る/編集' : '📸 記録する'}
@@ -724,18 +771,63 @@ function showCalendarDetail(date) {
   });
 }
 
-async function updateCalendarDriver(fd, companyName, companyId, vehicleId, driverId) {
-  updateStatus('loading', 'ドライバーを変更中...');
+// ════════════════════════════════════════════════════════
+//  日付詳細から、既存の便の内容（時刻・車両・ドライバー・種別・メモ）を直接編集
+// ════════════════════════════════════════════════════════
+let ceState = { date: '', companyName: '', companyId: '', hasDelivery: true, hasPickup: false };
+
+function openCalEntryEdit(fd, companyName, companyId, vehicleId, driverId, time, memo, hasDelivery, hasPickup) {
+  ceState.date = fd;
+  ceState.companyName = companyName;
+  ceState.companyId = companyId;
+  ceState.hasDelivery = hasDelivery;
+  ceState.hasPickup = hasPickup;
+
+  document.getElementById('ce-title').textContent = `${companyName}（${fd}）`;
+  const vSel = document.getElementById('ce-vehicle');
+  vSel.innerHTML = '<option value="">-- 未定 --</option>' + db.vehicles.map(v => `<option value="${v.id}" ${String(v.id) === String(vehicleId) ? 'selected' : ''}>${v.name}</option>`).join('');
+  const dSel = document.getElementById('ce-driver');
+  dSel.innerHTML = '<option value="">-- 未定 --</option>' + db.drivers.map(d => `<option value="${d.id}" ${String(d.id) === String(driverId) ? 'selected' : ''}>${d.name}</option>`).join('');
+  document.getElementById('ce-time').value = time || '';
+  document.getElementById('ce-memo').value = memo || '';
+
+  updateCeTypeButtons();
+  document.getElementById('cal-entry-edit-modal').classList.remove('hidden');
+}
+function closeCalEntryEdit() { document.getElementById('cal-entry-edit-modal').classList.add('hidden'); }
+
+function toggleCeType(type) {
+  if (type === 'delivery') ceState.hasDelivery = !ceState.hasDelivery;
+  if (type === 'pickup') ceState.hasPickup = !ceState.hasPickup;
+  updateCeTypeButtons();
+}
+function updateCeTypeButtons() {
+  const dBtn = document.getElementById('ce-btn-delivery');
+  const pBtn = document.getElementById('ce-btn-pickup');
+  dBtn.className = `flex-1 py-2 rounded-md border-2 text-sm font-bold transition ${ceState.hasDelivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`;
+  pBtn.className = `flex-1 py-2 rounded-md border-2 text-sm font-bold transition ${ceState.hasPickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`;
+}
+
+async function submitCalEntryEdit() {
+  const vehicleId = document.getElementById('ce-vehicle').value || null;
+  const driverId = document.getElementById('ce-driver').value || null;
+  const time = document.getElementById('ce-time').value || null;
+  const memo = document.getElementById('ce-memo').value || null;
+  const fd = ceState.date;
+
+  closeCalEntryEdit();
+  updateStatus('loading', '便の内容を更新中...');
   const { error } = await sb.from('dispatch_days').upsert({
-    date: fd, company_id: companyId || null, company_name: companyName,
-    status: 'go', vehicle_id: vehicleId || null, driver_id: driverId || null,
+    date: fd, company_id: ceState.companyId || null, company_name: ceState.companyName,
+    status: 'go', vehicle_id: vehicleId, driver_id: driverId, time,
+    has_delivery: ceState.hasDelivery, has_pickup: ceState.hasPickup, note: memo,
   }, { onConflict: 'date,company_name' });
-  if (error) { updateStatus('error', '変更に失敗: ' + error.message); return; }
+  if (error) { updateStatus('error', '更新に失敗: ' + error.message); return; }
   await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
   renderCalendar();
   const d = parseDate(fd);
   if (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear) showCalendarDetail(d.getDate());
-  updateStatus('success', 'ドライバーを変更しました');
+  updateStatus('success', '便の内容を更新しました');
 }
 
 // ════════════════════════════════════════════════════════
@@ -1350,19 +1442,30 @@ async function submitDriver() {
 // ════════════════════════════════════════════════════════
 //  取引先マスタ
 // ════════════════════════════════════════════════════════
+// 曜日を月→日の順で並べた、ミニ丸バッジ（該当日だけ濃色）。一覧でパッと曜日を把握できるように。
+function dayDotsHtml(c) {
+  const order = [1, 2, 3, 4, 5, 6, 0]; // 月,火,水,木,金,土,日 の順（DOW_KEY/DOW_JPはsun始まりなので並べ替える）
+  return order.map(i => {
+    const active = !!c[DOW_KEY[i]];
+    return `<span class="inline-flex items-center justify-center w-4 h-4 rounded text-[9px] font-bold ${active ? 'bg-slate-800 text-white' : 'bg-gray-100 text-gray-300'}">${DOW_JP[i]}</span>`;
+  }).join('');
+}
+
 function renderCompanies() {
   const regEl = document.getElementById('companies-regular');
   const irrEl = document.getElementById('companies-irregular');
-  const regular = db.companies.filter(c => !(c.pattern || '').includes('不定期'));
-  const irregular = db.companies.filter(c => (c.pattern || '').includes('不定期'));
+  const sortByName = (a, b) => a.name.localeCompare(b.name, 'ja');
+  const regular = db.companies.filter(c => !c.is_irregular).slice().sort(sortByName);
+  const irregular = db.companies.filter(c => c.is_irregular).slice().sort(sortByName);
 
   const cardHtml = (c) => `
-    <div class="bg-white p-3 rounded-md border border-gray-200 text-xs space-y-1">
+    <div class="bg-white p-3 rounded-md border border-gray-200 text-xs space-y-1.5">
       <div class="flex justify-between items-start gap-1">
         <h4 class="font-bold text-gray-900 text-sm leading-tight">${c.name}</h4>
         <button onclick="openCompanyModal(${JSON.stringify(c).replace(/"/g, '&quot;')})" class="text-blue-500 hover:underline shrink-0">修正</button>
       </div>
-      <span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">${c.pattern || '未設定'}</span>
+      ${c.is_irregular ? '' : `<div class="flex gap-0.5">${dayDotsHtml(c)}</div>`}
+      <span class="inline-block px-2 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">${formatCompanySchedule(c)}</span>
       ${(() => { const dv = db.vehicles.find(v => String(v.id) === String(c.default_vehicle_id)); return dv ? `<p class="text-xs text-blue-600">🚛 ${dv.name}</p>` : ''; })()}
       ${c.default_time ? `<p class="text-gray-500">⏰ ${c.default_time}</p>` : ''}
       ${c.note ? `<p class="text-gray-400 bg-yellow-50 px-2 py-1 rounded border border-yellow-100">💡 ${c.note}</p>` : ''}
@@ -1373,40 +1476,89 @@ function renderCompanies() {
   irrEl.innerHTML = irregular.length ? irregular.map(cardHtml).join('') : '<p class="text-xs text-gray-400 text-center py-4">なし</p>';
 }
 
+// 不定期チェックの表示切り替え（曜日・頻度・祝日の入力欄をまとめて隠す/出す）
+function onCompanyIrregularToggle() {
+  const irregular = document.getElementById('c-irregular').checked;
+  document.getElementById('c-regular-fields').classList.toggle('hidden', irregular);
+}
+// 頻度（毎週/隔週）の切り替え：隔週の場合のみ基準日の入力欄を出す
+function onCompanyFrequencyChange() {
+  const biweekly = document.getElementById('c-freq-biweekly').checked;
+  document.getElementById('c-biweekly-anchor-wrap').classList.toggle('hidden', !biweekly);
+}
+// 「月〜金をまとめて選択」ショートカット
+function setCompanyWeekdays() {
+  ['mon', 'tue', 'wed', 'thu', 'fri'].forEach(k => { document.getElementById('c-' + k).checked = true; });
+  ['sat', 'sun'].forEach(k => { document.getElementById('c-' + k).checked = false; });
+}
+
 function openCompanyModal(data = null) {
   document.getElementById('company-modal').classList.remove('hidden');
   const cVSel = document.getElementById('c-vehicle');
   cVSel.innerHTML = '<option value="">-- 選択 --</option>' + db.vehicles.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+  DOW_KEY.forEach(key => { document.getElementById('c-' + key).checked = false; });
+  document.getElementById('c-biweekly-anchor').value = '';
   if (data) {
     document.getElementById('company-modal-title').innerText = '取引先の修正';
     document.getElementById('c-id').value = data.id;
     document.getElementById('c-name').value = data.name;
     document.getElementById('c-time').value = data.default_time || '';
-    document.getElementById('c-pattern').value = data.pattern || '毎営業日';
     document.getElementById('c-note').value = data.note || '';
     document.getElementById('c-vehicle').value = data.default_vehicle_id || '';
+    document.getElementById('c-irregular').checked = !!data.is_irregular;
+    DOW_KEY.forEach(key => { if (data[key]) document.getElementById('c-' + key).checked = true; });
+    document.getElementById('c-freq-weekly').checked = data.frequency !== '隔週';
+    document.getElementById('c-freq-biweekly').checked = data.frequency === '隔週';
+    document.getElementById('c-biweekly-anchor').value = data.biweekly_anchor || '';
+    document.getElementById('c-exclude-holidays').checked = !!data.exclude_holidays;
   } else {
     document.getElementById('company-modal-title').innerText = '取引先の新規登録';
     document.getElementById('c-id').value = crypto.randomUUID();
     document.getElementById('c-name').value = '';
     document.getElementById('c-time').value = '';
-    document.getElementById('c-pattern').value = '毎営業日';
     document.getElementById('c-note').value = '';
     document.getElementById('c-vehicle').value = '';
+    document.getElementById('c-irregular').checked = false;
+    document.getElementById('c-freq-weekly').checked = true;
+    document.getElementById('c-freq-biweekly').checked = false;
+    document.getElementById('c-exclude-holidays').checked = false;
   }
+  onCompanyIrregularToggle();
+  onCompanyFrequencyChange();
 }
 function closeCompanyModal() { document.getElementById('company-modal').classList.add('hidden'); }
 async function submitCompany() {
   const id = document.getElementById('c-id').value;
   const name = document.getElementById('c-name').value.trim();
   if (!name) { alert('会社名を入力してください'); return; }
-  await upsertRow('companies', {
+  const isIrregular = document.getElementById('c-irregular').checked;
+  const row = {
     id, name,
     default_time: document.getElementById('c-time').value || null,
     default_vehicle_id: document.getElementById('c-vehicle').value || null,
-    pattern: document.getElementById('c-pattern').value,
     note: document.getElementById('c-note').value,
-  });
+    is_irregular: isIrregular,
+  };
+  if (isIrregular) {
+    DOW_KEY.forEach(key => { row[key] = false; });
+    row.frequency = '毎週';
+    row.exclude_holidays = false;
+    row.biweekly_anchor = null;
+  } else {
+    DOW_KEY.forEach(key => { row[key] = document.getElementById('c-' + key).checked; });
+    if (!DOW_KEY.some(key => row[key])) { alert('曜日を1つ以上選択するか、「不定期・かんばん次第」にチェックしてください'); return; }
+    const freq = document.querySelector('input[name="c-frequency"]:checked').value;
+    row.frequency = freq;
+    row.exclude_holidays = document.getElementById('c-exclude-holidays').checked;
+    if (freq === '隔週') {
+      const anchor = document.getElementById('c-biweekly-anchor').value;
+      if (!anchor) { alert('隔週の場合は基準日を入力してください'); return; }
+      row.biweekly_anchor = anchor;
+    } else {
+      row.biweekly_anchor = null;
+    }
+  }
+  await upsertRow('companies', row);
   closeCompanyModal();
 }
 
