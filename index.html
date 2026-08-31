@@ -528,6 +528,10 @@
         <input type="text" id="ce-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitCalEntryEdit()}">
       </div>
 
+      <div class="text-right">
+        <button type="button" onclick="deleteCalEntry()" class="text-red-500 hover:underline text-xs">🗑 この日は運行しない（削除）</button>
+      </div>
+
       <div class="flex gap-2 pt-2 border-t">
         <button onclick="closeCalEntryEdit()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
         <button onclick="submitCalEntryEdit()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ 保存する</button>

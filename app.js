@@ -830,6 +830,26 @@ async function submitCalEntryEdit() {
   updateStatus('success', '便の内容を更新しました');
 }
 
+// 「この日は運行しない（削除）」：定期便（取引先マスタの曜日パターン）から自動生成されている
+// 便の場合は、実体を消すのではなく status='skip' の行をこの日付だけ登録することで、
+// 他の週・他の日には一切影響を与えずにこの日だけ非表示にする（schema.sqlのdispatch_days設計通り）。
+// スポット便（マスタに無い一回限りの便）の場合も、同じ仕組みで一覧から消える。
+async function deleteCalEntry() {
+  if (!confirm(`「${ceState.companyName}」（${ceState.date}）を削除しますか？\n定期便の場合はこの日だけ運行なしになり、他の日の予定には影響しません。`)) return;
+  const fd = ceState.date;
+  closeCalEntryEdit();
+  updateStatus('loading', '削除中...');
+  const { error } = await sb.from('dispatch_days').upsert({
+    date: fd, company_id: ceState.companyId || null, company_name: ceState.companyName, status: 'skip',
+  }, { onConflict: 'date,company_name' });
+  if (error) { updateStatus('error', '削除に失敗: ' + error.message); return; }
+  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
+  const d = parseDate(fd);
+  if (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear) showCalendarDetail(d.getDate());
+  updateStatus('success', '削除しました');
+}
+
 // ════════════════════════════════════════════════════════
 //  便追加モーダル（複数日付・納品/引取の種別・メモに対応）
 // ════════════════════════════════════════════════════════
