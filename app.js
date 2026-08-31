@@ -1103,7 +1103,24 @@ async function submitExcelImport() {
   const invalid = targetRows.find(r => !r.date || !r.company_name);
   if (invalid) { alert('日付または取引先名が空の行があります。確認してください。'); return; }
 
-  const rows = targetRows.map(r => {
+  // 同じ日付・同じ取引先の行がエクセル内に複数あると（例：納品と引取を別の行に分けて
+  // 入力した場合など）、1回のupsertで同じ行を2回更新しようとしてPostgresが
+  // 「ON CONFLICT DO UPDATE command cannot affect row a second time」エラーを返してしまう。
+  // そのため送信前に (date, company_name) が同じ行はここでまとめておく。
+  const mergedMap = new Map();
+  targetRows.forEach(r => {
+    const key = `${r.date}__${r.company_name}`;
+    const prev = mergedMap.get(key);
+    if (prev) {
+      prev.has_delivery = prev.has_delivery || r.has_delivery;
+      prev.has_pickup = prev.has_pickup || r.has_pickup;
+      prev.note = [prev.note, r.note].filter(Boolean).join(' / ');
+    } else {
+      mergedMap.set(key, { ...r });
+    }
+  });
+
+  const rows = [...mergedMap.values()].map(r => {
     const existing = db.companies.find(c => c.name === r.company_name);
     return {
       date: r.date, company_id: existing ? existing.id : null, company_name: r.company_name,
