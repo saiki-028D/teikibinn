@@ -26,6 +26,8 @@ let holidays = {};
 let appSettings = {};            // key -> value（app_settingsテーブルのキャッシュ。全端末共有の設定値）
 
 let currentYear, currentMonth;
+let calCellLastClick = { date: null, time: 0 };
+let calCellClickTimer = null;
 let confirmedVehicleFilter = 'all';
 let calVehicleFilter = 'all';
 let calCompanyFilter = '';
@@ -690,10 +692,48 @@ function renderCalendar() {
 
 let calendarDetailDate = '';
 
-// カレンダーのマス目はクリック（タップ）1回で日付詳細（車両/ドライバー別の一覧）を開く。
-// 一覧の中の各便には「✏️ 編集」ボタンがあり、そこから編集画面を開く（詳細はshowCalendarDetail参照）。
+// カレンダーのマス目は、ワンクリック（タップ）で日付詳細・実績（一覧）を表示、
+// ダブルクリック（スマホではダブルタップ）でその場で編集画面を開く。
+// ネイティブのdblclickイベントはスマホでズーム操作と競合しやすいため、
+// clickイベントのタイミングを見て手動で2回連続クリックを判定する。
 function handleCalCellClick(date) {
-  showCalendarDetail(date);
+  const now = Date.now();
+  if (calCellLastClick.date === date && (now - calCellLastClick.time) < 400) {
+    // 2回目のクリック＝ダブルクリックとして扱う。シングルクリック用の予約処理をキャンセル。
+    calCellLastClick.date = null;
+    if (calCellClickTimer) { clearTimeout(calCellClickTimer); calCellClickTimer = null; }
+    handleCalCellDoubleClick(date);
+  } else {
+    calCellLastClick.date = date;
+    calCellLastClick.time = now;
+    // 400ms以内に2回目のクリックが来なければ、シングルクリックとして日付詳細・実績を開く。
+    calCellClickTimer = setTimeout(() => {
+      calCellClickTimer = null;
+      if (calCellLastClick.date === date) {
+        calCellLastClick.date = null;
+        showCalendarDetail(date);
+      }
+    }, 400);
+  }
+}
+
+// ダブルクリック時：その日の予定がちょうど1件なら、一覧を経由せずその便の編集画面を直接開く。
+// 0件または2件以上（どれを編集したいか一意に決まらない）の場合は、日付詳細・実績（一覧）を表示する
+// （そこから編集したい便の「✏️ 編集」ボタンで個別に編集できる）。
+function handleCalCellDoubleClick(date) {
+  const fd = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
+  const dObj = parseDate(fd);
+  let companies = getScheduledCompaniesForDate(dObj);
+  if (calVehicleFilter !== 'all') companies = companies.filter(c => String(c.vehicleId) === String(calVehicleFilter));
+  if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
+  if (calDriverFilter) companies = companies.filter(c => String(c.driverId) === String(calDriverFilter));
+
+  if (companies.length === 1) {
+    const c = companies[0];
+    openCalEntryEdit(fd, c.name, c.companyId || '', c.vehicleId || '', c.driverId || '', c.time || '', c.memo || '', !!c.hasDelivery, !!c.hasPickup);
+  } else {
+    showCalendarDetail(date);
+  }
 }
 
 function showCalendarDetail(date) {
@@ -1162,9 +1202,14 @@ async function submitExcelImport() {
 
   const rows = [...mergedMap.values()].map(r => {
     const existing = db.companies.find(c => c.name === r.company_name);
+    // 車両はマスタ（取引先マスタの既定車両）を優先して自動設定する。
+    // ドライバーも、その車両にその曜日担当として割り当てられているドライバーがマスタにいれば自動設定する
+    // （カレンダーの定期便表示・「本日」タブと同じautoDriverForのロジックに合わせている）。
+    const vehicleId = existing ? existing.default_vehicle_id || null : null;
+    const driverId = vehicleId ? (autoDriverFor(vehicleId, parseDate(r.date)) || null) : null;
     return {
       date: r.date, company_id: existing ? existing.id : null, company_name: r.company_name,
-      status: 'go', vehicle_id: existing ? existing.default_vehicle_id || null : null, driver_id: null,
+      status: 'go', vehicle_id: vehicleId, driver_id: driverId,
       is_spot: !existing, has_delivery: r.has_delivery, has_pickup: r.has_pickup, note: r.note || null,
     };
   });
