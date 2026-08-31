@@ -1052,6 +1052,8 @@ async function handleExcelImportFileSelect(event) {
       // 完全に空の行（例のすぐ下の空行など）は無視する
       .filter(r => r.date || r.company_name || r.note || r.has_delivery || r.has_pickup);
 
+    excelImportState.rows.forEach(r => findExcelImportSuggestion(r));
+
     if (excelImportState.rows.length === 0) {
       errEl.textContent = '読み込める行が見つかりませんでした。テンプレートの形式で入力されているかご確認ください。';
       errEl.classList.remove('hidden');
@@ -1068,6 +1070,32 @@ async function handleExcelImportFileSelect(event) {
   }
 }
 
+// 取引先名がマスタと完全一致しない場合（例：「東和特殊」に対して「東和特殊プリント」など）、
+// このままだとマスタに紐付かない「スポット便」として登録され、既にある予定と同じ日に
+// 別々のカードとして表示されてしまう（見た目上の重複）。
+// マスタ名と部分一致する候補が1件だけ見つかった場合に限り「候補」として保持しておき、
+// 確認画面でユーザーがワンクリックで正式な登録名に統一できるようにする（自動で書き換えはしない）。
+function findExcelImportSuggestion(r) {
+  delete r.suggestedName;
+  if (!r.company_name) return;
+  if (db.companies.some(c => c.name === r.company_name)) return; // 完全一致ならそのまま
+  const norm = s => String(s).replace(/[\s　]/g, '');
+  const rn = norm(r.company_name);
+  if (!rn) return;
+  const candidates = db.companies.filter(c => {
+    const cn = norm(c.name);
+    return cn.length >= 2 && (rn.includes(cn) || cn.includes(rn));
+  });
+  if (candidates.length === 1) r.suggestedName = candidates[0].name;
+}
+function applyExcelImportSuggestion(i) {
+  const r = excelImportState.rows[i];
+  if (!r || !r.suggestedName) return;
+  r.company_name = r.suggestedName;
+  delete r.suggestedName;
+  renderExcelImportRows();
+}
+
 function renderExcelImportRows() {
   const tbody = document.getElementById('excel-import-rows');
   tbody.innerHTML = excelImportState.rows.map((r, i) => `
@@ -1078,7 +1106,8 @@ function renderExcelImportRows() {
         ${r.confidence === 'low' ? `<div class="text-[10px] text-amber-600 mt-0.5">⚠️ ${r.flag_reason || '要確認'}</div>` : ''}
       </td>
       <td class="align-top pt-1 px-1">
-        <input type="text" value="${(r.company_name || '').replace(/"/g, '&quot;')}" list="as-name-list" class="border rounded p-1 text-xs w-full" onchange="excelImportState.rows[${i}].company_name=this.value">
+        <input type="text" value="${(r.company_name || '').replace(/"/g, '&quot;')}" list="as-name-list" class="border rounded p-1 text-xs w-full" onchange="excelImportState.rows[${i}].company_name=this.value; findExcelImportSuggestion(excelImportState.rows[${i}]); renderExcelImportRows();">
+        ${r.suggestedName ? `<div class="text-[10px] text-blue-600 mt-0.5">💡似た取引先「${r.suggestedName}」が見つかりました <button type="button" onclick="applyExcelImportSuggestion(${i})" class="underline font-bold">これに統合</button></div>` : ''}
       </td>
       <td class="align-top pt-1 px-1">
         <div class="flex gap-1">
