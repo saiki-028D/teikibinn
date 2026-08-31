@@ -30,7 +30,6 @@ let confirmedVehicleFilter = 'all';
 let calVehicleFilter = 'all';
 let calCompanyFilter = '';
 let calDriverFilter = '';
-let calCellLastClick = { date: null, time: 0 };
 let activeTab = 'today';
 
 const VEHICLE_COLORS = [
@@ -691,18 +690,10 @@ function renderCalendar() {
 
 let calendarDetailDate = '';
 
-// カレンダーのマス目はダブルクリック（スマホではダブルタップ）で日付詳細を開く。
-// ネイティブのdblclickイベントはスマホでズーム操作と競合しやすいため、
-// clickイベントのタイミングを見て手動で2回連続クリックを判定する。
+// カレンダーのマス目はクリック（タップ）1回で日付詳細（車両/ドライバー別の一覧）を開く。
+// 一覧の中の各便には「✏️ 編集」ボタンがあり、そこから編集画面を開く（詳細はshowCalendarDetail参照）。
 function handleCalCellClick(date) {
-  const now = Date.now();
-  if (calCellLastClick.date === date && (now - calCellLastClick.time) < 400) {
-    calCellLastClick.date = null;
-    showCalendarDetail(date);
-  } else {
-    calCellLastClick.date = date;
-    calCellLastClick.time = now;
-  }
+  showCalendarDetail(date);
 }
 
 function showCalendarDetail(date) {
