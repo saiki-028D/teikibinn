@@ -407,8 +407,8 @@ function renderFinalList() {
           ${badge}
           <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-1">${s.time || '時間未定'}</span>
           <strong class="text-sm text-gray-900">${s.name}</strong>
-          ${s.hasDelivery ? '<span class="text-xs ml-1" title="納品">📦</span>' : ''}
-          ${s.hasPickup ? '<span class="text-xs" title="引取">🔄</span>' : ''}
+          ${s.hasDelivery ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 ml-1">納品</span>' : ''}
+          ${s.hasPickup ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-700 ml-1">引取</span>' : ''}
           ${s.memo ? `<span class="text-xs text-blue-500 ml-1">📝 ${s.memo}</span>` : ''}
           <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v ? v.name : '車両未定'}${drv ? ' ／ 👤 ' + drv.name : ''}</span>
         </div>
@@ -653,7 +653,7 @@ function renderCalendar() {
     const totalCount = companies.length;
     const hasNew = companies.some(c => isNewSinceLastPrint(c.createdAt));
 
-    let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-gray-300';
+    let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-black';
     if (isToday) { bgCls = 'bg-orange-500'; numCls = 'text-white'; borderCls = 'border-orange-400'; }
     else if (dow === 0) { bgCls = 'bg-gray-100'; numCls = 'text-red-400'; }
     else if (dow === 6) { bgCls = 'bg-gray-100'; numCls = 'text-sky-500'; }
@@ -746,17 +746,24 @@ function showCalendarDetail(date) {
 
       const rec = recordsByDate.get(fd) && recordsByDate.get(fd).get(c.name);
       const hasRecord = !!rec;
+      const thumbUrl = hasRecord ? ((rec.nouhin_photo_urls && rec.nouhin_photo_urls[0]) || (rec.hikitori_photo_urls && rec.hikitori_photo_urls[0]) || '') : '';
+      const recJson = hasRecord ? JSON.stringify(rec).replace(/"/g, '&quot;') : '';
+      const recordStatus = !hasRecord
+        ? '<span class="text-[10px] text-gray-400 shrink-0">未記録</span>'
+        : thumbUrl
+          ? `<img src="${thumbUrl}" onclick="openRecordViewer(${recJson})" class="w-7 h-7 object-cover rounded border border-gray-200 cursor-pointer shrink-0" alt="記録写真プレビュー">`
+          : '<span class="w-7 h-7 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-[8px] shrink-0">写真無</span>';
 
       const drv = db.drivers.find(d => String(d.id) === String(c.driverId));
 
       list.innerHTML += `
         <div class="flex items-center gap-1.5 p-2.5 rounded overflow-x-auto ml-2" style="background:${col.bg}33">
           ${badge}${typeBadge}${newBadge}${kindBadges}
+          ${recordStatus}
           <span class="font-bold text-gray-800 text-xs shrink-0">${c.name}</span>
           ${c.time ? `<span class="text-[10px] text-gray-500 shrink-0">${c.time}</span>` : ''}
           ${c.memo ? `<span class="text-[10px] text-blue-500 shrink-0">📝${c.memo}</span>` : ''}
           <span class="text-[10px] text-gray-500 shrink-0">${drv ? '👤' + drv.name : '👤未定'}</span>
-          <span class="text-[10px] text-gray-400 shrink-0">${hasRecord ? '📝記録あり' : '未記録'}</span>
           <button onclick="openDeliveryModal('${escQ(c.name)}','${fd}')" class="ml-auto text-[10px] font-bold px-2 py-1 rounded ${hasRecord ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-800 text-white'} whitespace-nowrap shrink-0">
             ${hasRecord ? '📋 記録を見る/編集' : '📸 記録する'}
           </button>
@@ -1329,7 +1336,7 @@ async function loadRecordsView() {
 //  写真・配送実績モーダル
 // ════════════════════════════════════════════════════════
 const photoState = { nouhin: [], hikitori: [] };
-const MAX_PHOTOS = 5;
+const MAX_PHOTOS = 10;
 let deliveryTargetDate = '';
 let deliveryTargetCompany = '';
 
@@ -1371,15 +1378,32 @@ function renderPhotoGrid(type) {
     grid.appendChild(file);
   }
 }
-function handlePhotoSelect(type, event) {
-  const files = Array.from(event.target.files);
+function addPhotoFiles(type, fileList) {
+  const files = Array.from(fileList).filter(f => f.type.startsWith('image/'));
   const remaining = MAX_PHOTOS - photoState[type].length;
   files.slice(0, remaining).forEach(file => {
     const reader = new FileReader();
     reader.onload = e => { photoState[type].push({ dataUrl: e.target.result, file }); renderPhotoGrid(type); };
     reader.readAsDataURL(file);
   });
+}
+function handlePhotoSelect(type, event) {
+  addPhotoFiles(type, event.target.files);
   event.target.value = '';
+}
+// PC上でエクスプローラー/Finderから写真ファイルをドラッグ＆ドロップして追加できるようにする
+// （スマホの📷カメラ／🖼️選択ボタンと並行して使える追加の入力手段。ドロップ領域はphoto-grid自体）
+function handlePhotoDragOver(event) {
+  event.preventDefault();
+  event.currentTarget.classList.add('drag-over');
+}
+function handlePhotoDragLeave(event) {
+  event.currentTarget.classList.remove('drag-over');
+}
+function handlePhotoDrop(type, event) {
+  event.preventDefault();
+  event.currentTarget.classList.remove('drag-over');
+  if (event.dataTransfer && event.dataTransfer.files) addPhotoFiles(type, event.dataTransfer.files);
 }
 function removePhoto(type, idx) { photoState[type].splice(idx, 1); renderPhotoGrid(type); }
 function openLightbox(src) { document.getElementById('lightbox-img').src = src; document.getElementById('photo-lightbox').classList.remove('hidden'); }
