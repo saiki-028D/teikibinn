@@ -206,7 +206,7 @@ function scheduleSettingsRefresh() {
 }
 
 // 「マスタ管理」ドロップダウンにまとめたタブ（登録時にしか触らないもの）
-const MASTER_TABS = ['companies', 'vehicles', 'checks', 'drivers'];
+const MASTER_TABS = ['companies', 'vehicles', 'drivers'];
 
 function switchTab(tabId) {
   activeTab = tabId;
@@ -215,7 +215,7 @@ function switchTab(tabId) {
 
   const inactiveTop = 'w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap';
   const activeTop = 'w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
-  ['today', 'calendar', 'records'].forEach(id => {
+  ['today', 'calendar', 'records', 'checks'].forEach(id => {
     document.getElementById(`tab-${id}`).className = (id === tabId) ? activeTop : inactiveTop;
   });
 
@@ -395,7 +395,9 @@ function renderFinalList() {
   runs.forEach(s => {
     const v = db.vehicles.find(x => String(x.id) === String(s.vehicleId));
     const drv = db.drivers.find(x => String(x.id) === String(s.driverId));
-    const hasRecord = !!(recordsByDate.get(todayStr) && recordsByDate.get(todayStr).get(s.name));
+    const rec = recordsByDate.get(todayStr) && recordsByDate.get(todayStr).get(s.name);
+    const hasRecord = !!rec;
+    const recTime = (hasRecord && rec.saved_at) ? new Date(rec.saved_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
     const badge = s.confirmed
       ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 mr-1">✅ 確定</span>'
       : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">📅 定期</span>';
@@ -410,8 +412,8 @@ function renderFinalList() {
           ${s.memo ? `<span class="text-xs text-blue-500 ml-1">📝 ${s.memo}</span>` : ''}
           <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v ? v.name : '車両未定'}${drv ? ' ／ 👤 ' + drv.name : ''}</span>
         </div>
-        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="bg-slate-800 text-white text-xs px-3 py-2 rounded-md font-bold hover:bg-slate-900 transition">
-          ${hasRecord ? '📝 記録を編集' : '📸 記録する'}
+        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="text-xs px-3 py-2 rounded-md font-bold transition ${hasRecord ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : 'bg-slate-800 text-white hover:bg-slate-900'}">
+          ${hasRecord ? `✅ 記録済${recTime ? ' ' + recTime : ''}` : '📸 記録する'}
         </button>
       </div>`;
   });
@@ -651,7 +653,7 @@ function renderCalendar() {
     const totalCount = companies.length;
     const hasNew = companies.some(c => isNewSinceLastPrint(c.createdAt));
 
-    let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-gray-100';
+    let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-gray-300';
     if (isToday) { bgCls = 'bg-orange-500'; numCls = 'text-white'; borderCls = 'border-orange-400'; }
     else if (dow === 0) { bgCls = 'bg-gray-100'; numCls = 'text-red-400'; }
     else if (dow === 6) { bgCls = 'bg-gray-100'; numCls = 'text-sky-500'; }
@@ -800,7 +802,7 @@ function renderCalDayEditBody() {
     return;
   }
 
-  // 車両ごとにグループ化して表示（車両自体はここでは変更不可）
+  // 車両ごとにグループ化して表示。車両欄で変更すると、選択直後に再描画してグループを組み替える。
   const groups = [];
   visible.forEach(({ e, i }) => {
     const vid = e.vehicleId || '__none__';
@@ -822,12 +824,14 @@ function renderCalDayEditBody() {
     group.items.forEach(i => {
       const e = cdeEntries[i];
       const dSel = '<option value="">-- 未定 --</option>' + db.drivers.map(d => `<option value="${d.id}" ${String(d.id) === String(e.driverId) ? 'selected' : ''}>${d.name}</option>`).join('');
+      const vSel = '<option value="">-- 未定 --</option>' + db.vehicles.map(veh => `<option value="${veh.id}" ${String(veh.id) === String(e.vehicleId) ? 'selected' : ''}>${veh.name}</option>`).join('');
       html += `
         <div class="p-2.5 rounded ml-2 mb-2" style="background:${col.bg}33">
           <div class="flex items-center gap-1.5 flex-wrap">
             <span class="font-bold text-gray-800 text-xs">${e.companyName}</span>
+            <select data-role="vehicle" onchange="cdeChangeVehicle(${i}, this.value)" class="text-xs border border-gray-300 rounded px-1 py-0.5">${vSel}</select>
             <input type="time" value="${e.time}" onchange="cdeEntries[${i}].time=this.value" class="text-xs border border-gray-300 rounded px-1 py-0.5" style="width:6.5rem">
-            <select onchange="cdeEntries[${i}].driverId=this.value" class="text-xs border border-gray-300 rounded px-1 py-0.5">${dSel}</select>
+            <select data-role="driver" onchange="cdeEntries[${i}].driverId=this.value" class="text-xs border border-gray-300 rounded px-1 py-0.5">${dSel}</select>
             <label class="text-[10px] font-bold flex items-center gap-0.5"><input type="checkbox" ${e.hasDelivery ? 'checked' : ''} onchange="cdeEntries[${i}].hasDelivery=this.checked">納品</label>
             <label class="text-[10px] font-bold flex items-center gap-0.5"><input type="checkbox" ${e.hasPickup ? 'checked' : ''} onchange="cdeEntries[${i}].hasPickup=this.checked">引取</label>
             <button onclick="cdeDeleteEntry(${i})" class="ml-auto text-[10px] font-bold px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200 whitespace-nowrap shrink-0">🗑 削除</button>
@@ -849,6 +853,13 @@ function cdeDeleteEntry(i) {
   const e = cdeEntries[i];
   if (!confirm(`「${e.companyName}」を削除しますか？\n定期便の場合はこの日だけ運行なしになり、他の日の予定には影響しません。`)) return;
   e.deleted = true;
+  renderCalDayEditBody();
+}
+
+// 車両を変更：変更直後にグループを組み替えるため、値を反映してすぐ再描画する
+// （フォーカスは失われるが、車両変更は頻度が低い操作のため許容）。
+function cdeChangeVehicle(i, vehicleId) {
+  cdeEntries[i].vehicleId = vehicleId || '';
   renderCalDayEditBody();
 }
 
@@ -1289,12 +1300,18 @@ async function loadRecordsView() {
   list.innerHTML = filteredRows.map(r => {
     const v = db.vehicles.find(x => String(x.id) === String(r.vehicleId));
     if (r.rec) {
+      const thumbUrl = (r.rec.nouhin_photo_urls && r.rec.nouhin_photo_urls[0]) || (r.rec.hikitori_photo_urls && r.rec.hikitori_photo_urls[0]) || '';
+      const recJson = JSON.stringify(r.rec).replace(/"/g, '&quot;');
+      const thumb = thumbUrl
+        ? `<img src="${thumbUrl}" onclick="openRecordViewer(${recJson})" class="w-9 h-9 object-cover rounded border border-gray-200 cursor-pointer shrink-0" alt="記録写真プレビュー">`
+        : `<span class="w-9 h-9 rounded border border-dashed border-gray-200 flex items-center justify-center text-gray-300 text-[9px] shrink-0">写真無</span>`;
       return `<div class="flex items-center gap-2 p-3 bg-white rounded-md border border-gray-200 text-xs">
         <span class="font-mono text-gray-400 shrink-0">${r.date}</span>
+        ${thumb}
         <strong class="text-gray-900">${r.company}</strong>
         <span class="text-gray-400 shrink-0">🚛${v ? v.name : '未定'}</span>
         <span class="ml-auto text-emerald-700 bg-emerald-50 px-2 py-1 rounded font-bold shrink-0">記録済み</span>
-        <button onclick="openRecordViewer(${JSON.stringify(r.rec).replace(/"/g, '&quot;')})" class="text-indigo-600 font-bold shrink-0">見る</button>
+        <button onclick="openRecordViewer(${recJson})" class="text-indigo-600 font-bold shrink-0">見る</button>
       </div>`;
     }
     return `<div class="flex items-center gap-2 p-3 rounded-md border missing-row text-xs">
@@ -1807,7 +1824,89 @@ async function saveCheckData() {
     saved_at: new Date().toISOString(),
   }, { onConflict: 'vehicle_id,year,month' });
   if (error) { updateStatus('error', '保存に失敗: ' + error.message); return; }
-  updateStatus('success', '点検結果を保存しました');
+
+  try {
+    updateStatus('loading', '点検結果を保存しました。PDFを作成中...');
+    await exportCheckPdf();
+    updateStatus('success', '点検結果を保存し、PDFをダウンロードしました');
+  } catch (e) {
+    // PDF作成に失敗しても、DBへの保存自体は完了しているのでエラー扱いにはしない
+    console.error('PDF export failed:', e);
+    updateStatus('success', '点検結果を保存しました（PDFの作成に失敗したため、PDFは出力されていません）');
+  }
+}
+
+// 月次点検表を、画面表示中の内容（車両・年月・点検者・○△×・特記事項）をもとに
+// PDFファイルとして自動ダウンロードする。
+// jsPDFの標準フォントは日本語グリフを持たないため、いったんhtml2canvasで
+// 見た目通りにラスタライズ（画像化）してからPDFへ貼り付ける方式にしている
+// （カレンダー印刷とは別に、こちらはブラウザの印刷ダイアログを介さず直接ファイルを生成する）。
+async function exportCheckPdf() {
+  if (typeof html2canvas === 'undefined' || !window.jspdf) throw new Error('PDF出力用のライブラリが読み込まれていません');
+
+  const vId = document.getElementById('check-vehicle').value;
+  const v = db.vehicles.find(x => String(x.id) === String(vId));
+  const year = document.getElementById('check-year').value;
+  const month = document.getElementById('check-month').value;
+  const inspector = document.getElementById('check-inspector').value;
+  const note = document.getElementById('check-note').value;
+
+  const cats = [...new Set(CHECK_ITEMS.map(i => i.category))];
+  const rowsHtml = cats.map(cat => {
+    const items = CHECK_ITEMS.filter(i => i.category === cat).map(item => {
+      const mark = currentMarks[item.key] || '-';
+      const color = mark === '○' ? '#059669' : mark === '△' ? '#d97706' : mark === '×' ? '#dc2626' : '#9ca3af';
+      return `<tr>
+        <td style="padding:5px 8px;border:1px solid #ddd;font-size:12px;">${item.label}</td>
+        <td style="padding:5px 8px;border:1px solid #ddd;font-size:13px;text-align:center;font-weight:bold;color:${color};width:40px;">${mark}</td>
+      </tr>`;
+    }).join('');
+    return `<tr><td colspan="2" style="padding:6px 8px;background:#f3f4f6;font-weight:bold;font-size:12px;border:1px solid #ddd;">${cat}</td></tr>${items}`;
+  }).join('');
+
+  const sheet = document.createElement('div');
+  sheet.style.cssText = 'position:fixed;left:-9999px;top:0;width:780px;background:#fff;padding:24px;font-family:"Hiragino Sans","Yu Gothic",sans-serif;color:#111;';
+  sheet.innerHTML = `
+    <h1 style="font-size:20px;margin:0 0 4px;">月次点検表（26項目）</h1>
+    <p style="font-size:13px;color:#555;margin:0 0 16px;">車両：${v ? v.name : '(未選択)'}　／　対象年月：${year}年${month}月　／　点検者：${inspector || '（未記入）'}</p>
+    <table style="width:100%;border-collapse:collapse;">${rowsHtml}</table>
+    <div style="margin-top:16px;">
+      <p style="font-size:13px;font-weight:bold;margin:0 0 4px;">特記事項・メモ</p>
+      <p style="font-size:12px;border:1px solid #ddd;padding:8px;min-height:40px;white-space:pre-wrap;">${note ? note.replace(/</g, '&lt;') : '（なし）'}</p>
+    </div>
+    <p style="font-size:10px;color:#999;margin-top:20px;">出力日時：${new Date().toLocaleString('ja-JP')}</p>
+  `;
+  document.body.appendChild(sheet);
+
+  try {
+    const canvas = await html2canvas(sheet, { scale: 2, backgroundColor: '#ffffff' });
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 24;
+    const usableWidth = pageWidth - margin * 2;
+    const usableHeight = pageHeight - margin * 2;
+    const imgHeight = canvas.height * (usableWidth / canvas.width);
+
+    let heightLeft = imgHeight;
+    let position = margin;
+    pdf.addImage(imgData, 'JPEG', margin, position, usableWidth, imgHeight);
+    heightLeft -= usableHeight;
+
+    while (heightLeft > 0) {
+      pdf.addPage();
+      position = margin - (imgHeight - heightLeft);
+      pdf.addImage(imgData, 'JPEG', margin, position, usableWidth, imgHeight);
+      heightLeft -= usableHeight;
+    }
+
+    const fname = `点検表_${v ? v.name : '車両'}_${year}-${String(month).padStart(2, '0')}.pdf`;
+    pdf.save(fname);
+  } finally {
+    document.body.removeChild(sheet);
+  }
 }
 
 // ════════════════════════════════════════════════════════

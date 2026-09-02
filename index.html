@@ -6,6 +6,8 @@
   <title>車両・配送管理システム</title>
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     body { font-family: 'Helvetica Neue', Arial, sans-serif; }
     .photo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
@@ -63,6 +65,7 @@
         <button onclick="switchTab('today')"     id="tab-today"     class="w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap">本日</button>
         <button onclick="switchTab('calendar')"  id="tab-calendar"  class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">カレンダー</button>
         <button onclick="switchTab('records')"   id="tab-records"   class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">実績一覧</button>
+        <button onclick="switchTab('checks')"    id="tab-checks"    class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap">月次点検</button>
         <div class="relative w-full" id="master-nav-wrapper">
           <button onclick="toggleMasterMenu()" id="tab-master" class="w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap flex items-center justify-center gap-1">
             <span>マスタ管理</span><span class="text-[9px]">▼</span>
@@ -70,7 +73,6 @@
           <div id="master-menu" class="hidden absolute right-0 top-full w-40 bg-white border border-gray-200 rounded-md shadow-lg z-50 text-left">
             <button onclick="switchTab('companies')" id="tab-companies" class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800">取引先</button>
             <button onclick="switchTab('vehicles')"  id="tab-vehicles"  class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">車両</button>
-            <button onclick="switchTab('checks')"    id="tab-checks"    class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">月次点検</button>
             <button onclick="switchTab('drivers')"   id="tab-drivers"   class="block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800 border-t border-gray-100">ドライバー</button>
           </div>
         </div>
@@ -250,7 +252,7 @@
           <label class="block text-sm font-medium text-gray-700">特記事項・メモ</label>
           <textarea id="check-note" class="w-full border p-2 rounded text-sm" rows="3"></textarea>
         </div>
-        <button onclick="saveCheckData()" class="w-full bg-slate-800 text-white p-3 rounded-md font-bold hover:bg-slate-900 transition">点検結果を保存</button>
+        <button onclick="saveCheckData()" class="w-full bg-slate-800 text-white p-3 rounded-md font-bold hover:bg-slate-900 transition">💾 保存する（PDFも自動でダウンロードされます）</button>
       </section>
 
       <!-- ══════════════════════════════════════
