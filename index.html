@@ -26,7 +26,7 @@
       main { max-width: 100% !important; padding: 0 !important; }
       /* カレンダーの枠線は画面上はborder-gray-100(薄いグレー)だが、印刷すると
          さらに薄く見えてマス目が分かりにくくなるため、印刷時だけ濃い色に強制する */
-      #calendar-grid > button { border-color: #475569 !important; border-width: 1px !important; }
+      #calendar-grid > button { border-color: #000 !important; border-width: 1px !important; }
     }
   </style>
 </head>
@@ -174,7 +174,7 @@
           <div class="flex items-center justify-between mb-3">
             <h3 id="calendar-detail-date" class="font-bold text-blue-600"></h3>
             <div class="flex items-center gap-2 no-print">
-              <button id="cal-add-spot-btn" onclick="openAddScheduleModalFromDetail()" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition">＋ 便を追加</button>
+              <button id="cal-add-spot-btn" onclick="openCalDayEdit(calendarDetailDate)" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition">✏️ 編集</button>
               <button onclick="document.getElementById('calendar-detail').classList.add('hidden')" class="text-gray-400 text-lg">×</button>
             </div>
           </div>
@@ -491,50 +491,20 @@
     </div>
   </div>
 
-  <!-- ══ 既存の便を編集するモーダル（日付詳細の「✏️ 編集」から開く） ══ -->
-  <div id="cal-entry-edit-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
-    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
+  <!-- ══ その日の便をまとめて編集するモーダル（日付詳細の「✏️ 編集」から開く） ══ -->
+  <div id="cal-day-edit-modal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-start justify-center p-4 overflow-y-auto">
+    <div class="bg-white p-5 rounded-md border border-gray-200 w-full max-w-lg space-y-3 my-6">
       <div class="flex justify-between items-center border-b pb-2">
-        <h3 id="ce-title" class="text-base font-bold text-gray-900 truncate pr-2"></h3>
-        <button onclick="closeCalEntryEdit()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2 shrink-0">×</button>
+        <h3 id="cde-title" class="text-base font-bold text-gray-900 truncate pr-2"></h3>
+        <button onclick="closeCalDayEdit()" class="text-gray-400 hover:text-gray-600 text-xl font-bold px-2 shrink-0">×</button>
       </div>
 
-      <div>
-        <label class="block text-xs font-bold text-gray-500 mb-2">種別（複数選択可）</label>
-        <div class="flex gap-3">
-          <button type="button" id="ce-btn-delivery" onclick="toggleCeType('delivery')" class="flex-1 py-2 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">📦 納品</button>
-          <button type="button" id="ce-btn-pickup" onclick="toggleCeType('pickup')" class="flex-1 py-2 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">🔄 引取</button>
-        </div>
-      </div>
+      <button onclick="submitCalDayEdit()" class="w-full py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">🔄 更新</button>
 
-      <div class="grid grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs font-bold text-gray-500 mb-1">出発時刻</label>
-          <input type="time" id="ce-time" class="w-full border p-2 rounded text-sm">
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-gray-500 mb-1">車両</label>
-          <select id="ce-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 未定 --</option></select>
-        </div>
-      </div>
+      <div id="cde-body"></div>
 
-      <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">ドライバー</label>
-        <select id="ce-driver" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 未定 --</option></select>
-      </div>
-
-      <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">メモ</label>
-        <input type="text" id="ce-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitCalEntryEdit()}">
-      </div>
-
-      <div class="text-right">
-        <button type="button" onclick="deleteCalEntry()" class="text-red-500 hover:underline text-xs">🗑 この日は運行しない（削除）</button>
-      </div>
-
-      <div class="flex gap-2 pt-2 border-t">
-        <button onclick="closeCalEntryEdit()" class="flex-1 py-2.5 bg-gray-100 rounded-md text-sm font-medium hover:bg-gray-200">キャンセル</button>
-        <button onclick="submitCalEntryEdit()" class="flex-[2] px-6 py-2.5 bg-slate-800 text-white rounded-md text-sm font-bold hover:bg-slate-900 transition">✅ 保存する</button>
+      <div class="pt-2 border-t">
+        <button type="button" onclick="cdeAddNew()" class="w-full py-2 text-sm font-bold text-blue-600 hover:underline">＋ この日に便を追加</button>
       </div>
     </div>
   </div>

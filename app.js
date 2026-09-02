@@ -26,8 +26,6 @@ let holidays = {};
 let appSettings = {};            // key -> value（app_settingsテーブルのキャッシュ。全端末共有の設定値）
 
 let currentYear, currentMonth;
-let calCellLastClick = { date: null, time: 0 };
-let calCellClickTimer = null;
 let confirmedVehicleFilter = 'all';
 let calVehicleFilter = 'all';
 let calCompanyFilter = '';
@@ -655,8 +653,9 @@ function renderCalendar() {
 
     let bgCls = 'bg-white', numCls = 'text-gray-700', borderCls = 'border-gray-100';
     if (isToday) { bgCls = 'bg-orange-500'; numCls = 'text-white'; borderCls = 'border-orange-400'; }
-    else if (isHol || dow === 0) { bgCls = 'bg-red-50'; numCls = 'text-red-400'; }
-    else if (dow === 6) { bgCls = 'bg-sky-50'; numCls = 'text-sky-500'; }
+    else if (dow === 0) { bgCls = 'bg-gray-100'; numCls = 'text-red-400'; }
+    else if (dow === 6) { bgCls = 'bg-gray-100'; numCls = 'text-sky-500'; }
+    else if (isHol) { bgCls = 'bg-red-50'; numCls = 'text-red-400'; }
 
     const isFiltered = calCompanyFilter || calVehicleFilter !== 'all' || calDriverFilter;
     let cellBody = '';
@@ -692,48 +691,11 @@ function renderCalendar() {
 
 let calendarDetailDate = '';
 
-// カレンダーのマス目は、ワンクリック（タップ）で日付詳細・実績（一覧）を表示、
-// ダブルクリック（スマホではダブルタップ）でその場で編集画面を開く。
-// ネイティブのdblclickイベントはスマホでズーム操作と競合しやすいため、
-// clickイベントのタイミングを見て手動で2回連続クリックを判定する。
+// カレンダーのマス目をクリック（タップ）すると、日付詳細・実績（一覧）を表示する。
+// 編集は、日付詳細内の「✏️ 編集」ボタンから、その日一日分をまとめた編集画面を開く形で行う
+// （openCalDayEdit()）。
 function handleCalCellClick(date) {
-  const now = Date.now();
-  if (calCellLastClick.date === date && (now - calCellLastClick.time) < 400) {
-    // 2回目のクリック＝ダブルクリックとして扱う。シングルクリック用の予約処理をキャンセル。
-    calCellLastClick.date = null;
-    if (calCellClickTimer) { clearTimeout(calCellClickTimer); calCellClickTimer = null; }
-    handleCalCellDoubleClick(date);
-  } else {
-    calCellLastClick.date = date;
-    calCellLastClick.time = now;
-    // 400ms以内に2回目のクリックが来なければ、シングルクリックとして日付詳細・実績を開く。
-    calCellClickTimer = setTimeout(() => {
-      calCellClickTimer = null;
-      if (calCellLastClick.date === date) {
-        calCellLastClick.date = null;
-        showCalendarDetail(date);
-      }
-    }, 400);
-  }
-}
-
-// ダブルクリック時：その日の予定がちょうど1件なら、一覧を経由せずその便の編集画面を直接開く。
-// 0件または2件以上（どれを編集したいか一意に決まらない）の場合は、日付詳細・実績（一覧）を表示する
-// （そこから編集したい便の「✏️ 編集」ボタンで個別に編集できる）。
-function handleCalCellDoubleClick(date) {
-  const fd = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(date).padStart(2, '0')}`;
-  const dObj = parseDate(fd);
-  let companies = getScheduledCompaniesForDate(dObj);
-  if (calVehicleFilter !== 'all') companies = companies.filter(c => String(c.vehicleId) === String(calVehicleFilter));
-  if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
-  if (calDriverFilter) companies = companies.filter(c => String(c.driverId) === String(calDriverFilter));
-
-  if (companies.length === 1) {
-    const c = companies[0];
-    openCalEntryEdit(fd, c.name, c.companyId || '', c.vehicleId || '', c.driverId || '', c.time || '', c.memo || '', !!c.hasDelivery, !!c.hasPickup);
-  } else {
-    showCalendarDetail(date);
-  }
+  showCalendarDetail(date);
 }
 
 function showCalendarDetail(date) {
@@ -778,7 +740,7 @@ function showCalendarDetail(date) {
         : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500">📅 定期</span>';
       const typeBadge = c.type === 'spot' ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-100 text-purple-700">スポット</span>' : '';
       const newBadge = isNewSinceLastPrint(c.createdAt) ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-red-500 text-white">🆕 New</span>' : '';
-      const kindBadges = `${c.hasDelivery ? '<span class="text-[10px]" title="納品">📦</span>' : ''}${c.hasPickup ? '<span class="text-[10px]" title="引取">🔄</span>' : ''}`;
+      const kindBadges = `${c.hasDelivery ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">納品</span>' : ''}${c.hasPickup ? '<span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-green-50 text-green-700">引取</span>' : ''}`;
 
       const rec = recordsByDate.get(fd) && recordsByDate.get(fd).get(c.name);
       const hasRecord = !!rec;
@@ -792,7 +754,6 @@ function showCalendarDetail(date) {
           ${c.time ? `<span class="text-[10px] text-gray-500 shrink-0">${c.time}</span>` : ''}
           ${c.memo ? `<span class="text-[10px] text-blue-500 shrink-0">📝${c.memo}</span>` : ''}
           <span class="text-[10px] text-gray-500 shrink-0">${drv ? '👤' + drv.name : '👤未定'}</span>
-          <button onclick="openCalEntryEdit('${fd}','${escQ(c.name)}','${c.companyId || ''}','${c.vehicleId || ''}','${c.driverId || ''}','${c.time || ''}','${escQ(c.memo || '')}',${!!c.hasDelivery},${!!c.hasPickup})" class="text-[10px] font-bold px-2 py-1 rounded bg-white border border-gray-300 hover:bg-gray-50 whitespace-nowrap shrink-0">✏️ 編集</button>
           <span class="text-[10px] text-gray-400 shrink-0">${hasRecord ? '📝記録あり' : '未記録'}</span>
           <button onclick="openDeliveryModal('${escQ(c.name)}','${fd}')" class="ml-auto text-[10px] font-bold px-2 py-1 rounded ${hasRecord ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' : 'bg-slate-800 text-white'} whitespace-nowrap shrink-0">
             ${hasRecord ? '📋 記録を見る/編集' : '📸 記録する'}
@@ -803,82 +764,122 @@ function showCalendarDetail(date) {
 }
 
 // ════════════════════════════════════════════════════════
-//  日付詳細から、既存の便の内容（時刻・車両・ドライバー・種別・メモ）を直接編集
+//  日付詳細の「✏️ 編集」から、その日一日分の便をまとめて編集
+//  （時刻・ドライバー・納品/引取・メモを直接編集、削除は個別に、追加は
+//  　既存の便追加モーダルに委譲）
 // ════════════════════════════════════════════════════════
-let ceState = { date: '', companyName: '', companyId: '', hasDelivery: true, hasPickup: false };
+let cdeState = { date: '' };
+let cdeEntries = [];
 
-function openCalEntryEdit(fd, companyName, companyId, vehicleId, driverId, time, memo, hasDelivery, hasPickup) {
-  ceState.date = fd;
-  ceState.companyName = companyName;
-  ceState.companyId = companyId;
-  ceState.hasDelivery = hasDelivery;
-  ceState.hasPickup = hasPickup;
+function openCalDayEdit(fd) {
+  fd = fd || calendarDetailDate;
+  cdeState.date = fd;
+  const dObj = parseDate(fd);
+  let companies = getScheduledCompaniesForDate(dObj);
+  if (calVehicleFilter !== 'all') companies = companies.filter(c => String(c.vehicleId) === String(calVehicleFilter));
+  if (calCompanyFilter) companies = companies.filter(c => c.name === calCompanyFilter);
+  if (calDriverFilter) companies = companies.filter(c => String(c.driverId) === String(calDriverFilter));
 
-  document.getElementById('ce-title').textContent = `${companyName}（${fd}）`;
-  const vSel = document.getElementById('ce-vehicle');
-  vSel.innerHTML = '<option value="">-- 未定 --</option>' + db.vehicles.map(v => `<option value="${v.id}" ${String(v.id) === String(vehicleId) ? 'selected' : ''}>${v.name}</option>`).join('');
-  const dSel = document.getElementById('ce-driver');
-  dSel.innerHTML = '<option value="">-- 未定 --</option>' + db.drivers.map(d => `<option value="${d.id}" ${String(d.id) === String(driverId) ? 'selected' : ''}>${d.name}</option>`).join('');
-  document.getElementById('ce-time').value = time || '';
-  document.getElementById('ce-memo').value = memo || '';
+  cdeEntries = companies.map(c => ({
+    companyName: c.name, companyId: c.companyId || '', vehicleId: c.vehicleId || '',
+    driverId: c.driverId || '', time: c.time || '', memo: c.memo || '',
+    hasDelivery: !!c.hasDelivery, hasPickup: !!c.hasPickup, deleted: false,
+  }));
 
-  updateCeTypeButtons();
-  document.getElementById('cal-entry-edit-modal').classList.remove('hidden');
+  document.getElementById('cde-title').textContent = `${fd} の編集`;
+  renderCalDayEditBody();
+  document.getElementById('cal-day-edit-modal').classList.remove('hidden');
 }
-function closeCalEntryEdit() { document.getElementById('cal-entry-edit-modal').classList.add('hidden'); }
+function closeCalDayEdit() { document.getElementById('cal-day-edit-modal').classList.add('hidden'); }
 
-function toggleCeType(type) {
-  if (type === 'delivery') ceState.hasDelivery = !ceState.hasDelivery;
-  if (type === 'pickup') ceState.hasPickup = !ceState.hasPickup;
-  updateCeTypeButtons();
+function renderCalDayEditBody() {
+  const body = document.getElementById('cde-body');
+  const visible = cdeEntries.map((e, i) => ({ e, i })).filter(x => !x.e.deleted);
+  if (visible.length === 0) {
+    body.innerHTML = '<p class="text-xs text-gray-400 text-center py-3">この日の運行予定はありません。</p>';
+    return;
+  }
+
+  // 車両ごとにグループ化して表示（車両自体はここでは変更不可）
+  const groups = [];
+  visible.forEach(({ e, i }) => {
+    const vid = e.vehicleId || '__none__';
+    let g = groups.find(g => g.vehicleId === vid);
+    if (!g) { g = { vehicleId: vid, items: [] }; groups.push(g); }
+    g.items.push(i);
+  });
+
+  let html = '';
+  groups.forEach(group => {
+    const gv = db.vehicles.find(x => String(x.id) === String(group.vehicleId));
+    const col = getVehicleColor(group.vehicleId === '__none__' ? null : group.vehicleId);
+    html += `
+      <div class="flex items-center gap-2 mt-3 first:mt-0">
+        <div class="text-xs font-bold px-2.5 py-1 rounded shrink-0" style="background:${col.bg};color:${col.text}">🚛 ${gv ? gv.name : '車両未定'}</div>
+        <div class="flex-1 h-px bg-gray-200"></div>
+      </div>`;
+
+    group.items.forEach(i => {
+      const e = cdeEntries[i];
+      const dSel = '<option value="">-- 未定 --</option>' + db.drivers.map(d => `<option value="${d.id}" ${String(d.id) === String(e.driverId) ? 'selected' : ''}>${d.name}</option>`).join('');
+      html += `
+        <div class="p-2.5 rounded ml-2 mb-2" style="background:${col.bg}33">
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <span class="font-bold text-gray-800 text-xs">${e.companyName}</span>
+            <input type="time" value="${e.time}" onchange="cdeEntries[${i}].time=this.value" class="text-xs border border-gray-300 rounded px-1 py-0.5" style="width:6.5rem">
+            <select onchange="cdeEntries[${i}].driverId=this.value" class="text-xs border border-gray-300 rounded px-1 py-0.5">${dSel}</select>
+            <label class="text-[10px] font-bold flex items-center gap-0.5"><input type="checkbox" ${e.hasDelivery ? 'checked' : ''} onchange="cdeEntries[${i}].hasDelivery=this.checked">納品</label>
+            <label class="text-[10px] font-bold flex items-center gap-0.5"><input type="checkbox" ${e.hasPickup ? 'checked' : ''} onchange="cdeEntries[${i}].hasPickup=this.checked">引取</label>
+            <button onclick="cdeDeleteEntry(${i})" class="ml-auto text-[10px] font-bold px-2 py-1 rounded bg-red-50 text-red-600 border border-red-200 whitespace-nowrap shrink-0">🗑 削除</button>
+          </div>
+          <input type="text" value="${(e.memo || '').replace(/"/g, '&quot;')}" placeholder="メモ" oninput="cdeEntries[${i}].memo=this.value" class="mt-1.5 w-full text-xs border border-gray-300 rounded px-1.5 py-0.5">
+        </div>`;
+    });
+  });
+
+  body.innerHTML = html;
 }
-function updateCeTypeButtons() {
-  const dBtn = document.getElementById('ce-btn-delivery');
-  const pBtn = document.getElementById('ce-btn-pickup');
-  dBtn.className = `flex-1 py-2 rounded-md border-2 text-sm font-bold transition ${ceState.hasDelivery ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-400'}`;
-  pBtn.className = `flex-1 py-2 rounded-md border-2 text-sm font-bold transition ${ceState.hasPickup ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-400'}`;
-}
 
-async function submitCalEntryEdit() {
-  const vehicleId = document.getElementById('ce-vehicle').value || null;
-  const driverId = document.getElementById('ce-driver').value || null;
-  const time = document.getElementById('ce-time').value || null;
-  const memo = document.getElementById('ce-memo').value || null;
-  const fd = ceState.date;
-
-  closeCalEntryEdit();
-  updateStatus('loading', '便の内容を更新中...');
-  const { error } = await sb.from('dispatch_days').upsert({
-    date: fd, company_id: ceState.companyId || null, company_name: ceState.companyName,
-    status: 'go', vehicle_id: vehicleId, driver_id: driverId, time,
-    has_delivery: ceState.hasDelivery, has_pickup: ceState.hasPickup, note: memo,
-  }, { onConflict: 'date,company_name' });
-  if (error) { updateStatus('error', '更新に失敗: ' + error.message); return; }
-  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
-  renderCalendar();
-  const d = parseDate(fd);
-  if (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear) showCalendarDetail(d.getDate());
-  updateStatus('success', '便の内容を更新しました');
-}
-
-// 「この日は運行しない（削除）」：定期便（取引先マスタの曜日パターン）から自動生成されている
-// 便の場合は、実体を消すのではなく status='skip' の行をこの日付だけ登録することで、
-// 他の週・他の日には一切影響を与えずにこの日だけ非表示にする（schema.sqlのdispatch_days設計通り）。
+// 「削除」：定期便（取引先マスタの曜日パターン）から自動生成されている便の場合は、
+// 実体を消すのではなく status='skip' の行をこの日付だけ登録することで、他の週・他の日
+// には一切影響を与えずにこの日だけ非表示にする（schema.sqlのdispatch_days設計通り）。
 // スポット便（マスタに無い一回限りの便）の場合も、同じ仕組みで一覧から消える。
-async function deleteCalEntry() {
-  if (!confirm(`「${ceState.companyName}」（${ceState.date}）を削除しますか？\n定期便の場合はこの日だけ運行なしになり、他の日の予定には影響しません。`)) return;
-  const fd = ceState.date;
-  closeCalEntryEdit();
-  updateStatus('loading', '削除中...');
-  const { error } = await sb.from('dispatch_days').upsert({
-    date: fd, company_id: ceState.companyId || null, company_name: ceState.companyName, status: 'skip',
-  }, { onConflict: 'date,company_name' });
-  if (error) { updateStatus('error', '削除に失敗: ' + error.message); return; }
+// ここでは即座にDBへは反映せず、一覧から外して「🔄 更新」でまとめて確定する。
+function cdeDeleteEntry(i) {
+  const e = cdeEntries[i];
+  if (!confirm(`「${e.companyName}」を削除しますか？\n定期便の場合はこの日だけ運行なしになり、他の日の予定には影響しません。`)) return;
+  e.deleted = true;
+  renderCalDayEditBody();
+}
+
+// 「＋ この日に便を追加」：既存の便追加モーダルにそのままこの日付を渡して開く
+// （マスタ照合・自動入力などの既存ロジックをそのまま再利用するため）
+function cdeAddNew() {
+  const fd = cdeState.date;
+  closeCalDayEdit();
+  openAddScheduleModal(fd);
+}
+
+async function submitCalDayEdit() {
+  const fd = cdeState.date;
+  if (cdeEntries.length === 0) { closeCalDayEdit(); return; }
+
+  const rows = cdeEntries.map(e => ({
+    date: fd, company_id: e.companyId || null, company_name: e.companyName,
+    status: e.deleted ? 'skip' : 'go',
+    vehicle_id: e.vehicleId || null, driver_id: e.driverId || null, time: e.time || null,
+    has_delivery: e.hasDelivery, has_pickup: e.hasPickup, note: e.memo || null,
+  }));
+
+  closeCalDayEdit();
+  updateStatus('loading', '更新中...');
+  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  if (error) { updateStatus('error', '更新に失敗: ' + error.message); return; }
   await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
   buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
   const d = parseDate(fd);
   if (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear) showCalendarDetail(d.getDate());
-  updateStatus('success', '削除しました');
+  updateStatus('success', '更新しました');
 }
 
 // ════════════════════════════════════════════════════════
@@ -919,10 +920,6 @@ function openAddScheduleModal(presetDate) {
   renderAsDateGrid();
   renderAsSelectedDates();
   document.getElementById('add-schedule-modal').classList.remove('hidden');
-}
-function openAddScheduleModalFromDetail() {
-  const fd = calendarDetailDate || document.getElementById('calendar-detail-date').innerText.split(' ')[0];
-  openAddScheduleModal(fd);
 }
 function closeAddScheduleModal() { document.getElementById('add-schedule-modal').classList.add('hidden'); }
 
