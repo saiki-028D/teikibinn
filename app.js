@@ -391,8 +391,7 @@ function renderFinalList() {
     container.innerHTML += `<div class="flex flex-wrap gap-2 pb-3 border-b border-dashed border-gray-200"><span class="text-xs text-gray-400 self-center">本日のドライバー：</span>${chips}</div>`;
   }
 
-  runs.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-  runs.forEach(s => {
+  const renderRow = s => {
     const v = db.vehicles.find(x => String(x.id) === String(s.vehicleId));
     const drv = db.drivers.find(x => String(x.id) === String(s.driverId));
     const rec = recordsByDate.get(todayStr) && recordsByDate.get(todayStr).get(s.name);
@@ -401,8 +400,8 @@ function renderFinalList() {
     const badge = s.confirmed
       ? '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 mr-1">✅ 確定</span>'
       : '<span class="text-[10px] font-bold px-2 py-0.5 rounded bg-gray-100 text-gray-500 mr-1">📅 定期</span>';
-    container.innerHTML += `
-      <div class="flex flex-wrap justify-between items-center gap-2 border-b last:border-0 pb-3 last:pb-0">
+    return `
+      <div class="flex flex-wrap justify-between items-start gap-2 border-b last:border-0 pb-3 last:pb-0">
         <div>
           ${badge}
           <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-800 mr-1">${s.time || '時間未定'}</span>
@@ -412,11 +411,44 @@ function renderFinalList() {
           ${s.memo ? `<span class="text-xs text-blue-500 ml-1">📝 ${s.memo}</span>` : ''}
           <span class="block text-xs text-gray-400 mt-0.5">🚚 ${v ? v.name : '車両未定'}${drv ? ' ／ 👤 ' + drv.name : ''}</span>
         </div>
-        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="text-xs px-3 py-2 rounded-md font-bold transition ${hasRecord ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : 'bg-slate-800 text-white hover:bg-slate-900'}">
+        <button onclick="openDeliveryModal('${escQ(s.name)}','${todayStr}')" class="shrink-0 text-xs px-3 py-2 rounded-md font-bold transition ${hasRecord ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100' : 'bg-slate-800 text-white hover:bg-slate-900'}">
           ${hasRecord ? `✅ 記録済${recTime ? ' ' + recTime : ''}` : '📸 記録する'}
         </button>
       </div>`;
-  });
+  };
+
+  if (confirmedVehicleFilter === 'all') {
+    // 「すべて」表示のときは車両ごとにグループ化して表示する（車両タブと同じ並び順）。
+    // グループ内は時刻順、車両未定はグループの最後にまとめる。
+    const groups = [];
+    runs.forEach(s => {
+      const vid = s.vehicleId || '__none__';
+      let g = groups.find(g => g.vehicleId === vid);
+      if (!g) { g = { vehicleId: vid, items: [] }; groups.push(g); }
+      g.items.push(s);
+    });
+    groups.forEach(g => g.items.sort((a, b) => (a.time || '').localeCompare(b.time || '')));
+    groups.sort((a, b) => {
+      if (a.vehicleId === '__none__') return 1;
+      if (b.vehicleId === '__none__') return -1;
+      const ia = db.vehicles.findIndex(v => String(v.id) === String(a.vehicleId));
+      const ib = db.vehicles.findIndex(v => String(v.id) === String(b.vehicleId));
+      return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+    });
+
+    groups.forEach(group => {
+      const gv = db.vehicles.find(x => String(x.id) === String(group.vehicleId));
+      container.innerHTML += `
+        <div class="flex items-center gap-2 mt-3 first:mt-0 mb-1.5">
+          <div class="text-xs font-bold px-2.5 py-1 rounded shrink-0 bg-slate-100 text-slate-700">🚛 ${gv ? gv.name : '車両未定'}</div>
+          <div class="flex-1 h-px bg-gray-200"></div>
+        </div>`;
+      group.items.forEach(s => { container.innerHTML += renderRow(s); });
+    });
+  } else {
+    runs.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+    runs.forEach(s => { container.innerHTML += renderRow(s); });
+  }
 }
 
 function escQ(s) { return String(s).replace(/'/g, "\\'"); }
