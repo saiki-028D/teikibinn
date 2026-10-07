@@ -23,6 +23,7 @@
     .vtab-bar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
     .vtab-bar::-webkit-scrollbar { height: 0; }
     .missing-row { background: #fef2f2 !important; border-color: #fecaca !important; }
+    #calendar-grid > button.cal-selected { outline: 3px solid #2563eb; outline-offset: 1px; z-index: 1; opacity: 1 !important; }
     @media print {
       .no-print { display: none !important; }
       body { background: #fff; }
@@ -30,7 +31,17 @@
       /* カレンダーの枠線は画面上はborder-gray-100(薄いグレー)だが、印刷すると
          さらに薄く見えてマス目が分かりにくくなるため、印刷時だけ濃い色に強制する */
       #calendar-grid > button { border-color: #000 !important; border-width: 1px !important; }
+      #calendar-grid > button.cal-selected { outline: none !important; }
+      html, body { width: auto !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
+      #app, main, #view-calendar { width: 100% !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+      #view-calendar > div:first-child { border: none !important; padding: 0 !important; break-inside: avoid; page-break-inside: avoid; }
+      #view-calendar *, #view-calendar *::before, #view-calendar *::after { box-sizing: border-box !important; }
+      #calendar-grid { width: 100% !important; grid-template-columns: repeat(7, minmax(0, 1fr)) !important; }
+      #calendar-grid > div, #calendar-grid > button { height: 22mm !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      #calendar-detail { display: none !important; }
     }
+    @page { size: A4 landscape; margin: 10mm; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-800">
@@ -178,7 +189,7 @@
             <h3 id="calendar-detail-date" class="font-bold text-blue-600"></h3>
             <div class="flex items-center gap-2 no-print">
               <button id="cal-add-spot-btn" onclick="openCalDayEdit(calendarDetailDate)" class="text-xs font-bold px-3 py-1.5 bg-slate-800 text-white rounded hover:bg-slate-900 transition">✏️ 編集</button>
-              <button onclick="document.getElementById('calendar-detail').classList.add('hidden')" class="text-gray-400 text-lg">×</button>
+              <button onclick="closeCalendarDetail()" class="text-gray-400 text-lg">×</button>
             </div>
           </div>
           <div id="calendar-detail-list" class="space-y-2"></div>

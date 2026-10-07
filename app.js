@@ -714,16 +714,28 @@ function renderCalendar() {
     }
 
     grid.innerHTML += `
-      <button onclick="handleCalCellClick(${date})"
+      <button onclick="handleCalCellClick(${date})" data-date="${fd}"
         class="relative h-16 ${bgCls} border ${borderCls} rounded p-1 flex flex-col items-center justify-between hover:opacity-80 transition w-full overflow-hidden">
         ${hasNew ? '<span class="absolute top-0 right-0 text-[8px] font-bold px-1 py-0.5 rounded-bl bg-red-500 text-white leading-none">New</span>' : ''}
         <span class="text-xs font-bold ${numCls}">${date}</span>
         ${cellBody}
       </button>`;
   }
+  updateCalSelection();
 }
 
 let calendarDetailDate = '';
+
+function updateCalSelection() {
+  const detailOpen = !document.getElementById('calendar-detail').classList.contains('hidden');
+  document.querySelectorAll('#calendar-grid > button[data-date]').forEach(btn => {
+    btn.classList.toggle('cal-selected', detailOpen && btn.dataset.date === calendarDetailDate);
+  });
+}
+function closeCalendarDetail() {
+  document.getElementById('calendar-detail').classList.add('hidden');
+  updateCalSelection();
+}
 
 // カレンダーのマス目をクリック（タップ）すると、日付詳細・実績（一覧）を表示する。
 // 編集は、日付詳細内の「✏️ 編集」ボタンから、その日一日分をまとめた編集画面を開く形で行う
@@ -738,6 +750,7 @@ function showCalendarDetail(date) {
   calendarDetailDate = fd;
   document.getElementById('calendar-detail-date').innerText = `${fd} の運行予定・実績`;
   detail.classList.remove('hidden');
+  updateCalSelection();
 
   const dObj = parseDate(fd);
   let companies = getScheduledCompaniesForDate(dObj);
