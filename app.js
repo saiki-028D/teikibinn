@@ -91,6 +91,7 @@ async function boot() {
   document.getElementById('today-date-display').innerText = `${currentYear}年${currentMonth}月${todayObj.getDate()}日（${todayDay}）`;
   document.getElementById('rec-from').value = `${currentYear}-${String(currentMonth).padStart(2,'0')}-01`;
   document.getElementById('rec-to').value = todayStr;
+  document.getElementById('map-date').value = todayStr;
   initCheckFormSelectors();
   renderCheckForm();
   updateStatus('loading', '読み込み中...');
@@ -182,6 +183,7 @@ function refreshCurrentTabOnly() {
   if (activeTab === 'today') { buildConfirmedVtabs(); renderTodayDispatchBuilder(); }
   else if (activeTab === 'calendar') { renderCalendar(); }
   else if (activeTab === 'records') { loadRecordsView(); }
+  else if (activeTab === 'map') { renderMapView(); }
 }
 function subscribeRealtime() {
   sb.channel('public:dispatch_days')
@@ -202,6 +204,7 @@ function scheduleSettingsRefresh() {
   settingsRefreshTimer = setTimeout(async () => {
     await loadAppSettings();
     if (activeTab === 'calendar') renderCalendar();
+    if (activeTab === 'map') renderMapView();
   }, 500);
 }
 
@@ -213,14 +216,14 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
   document.getElementById(`view-${tabId}`).classList.remove('hidden');
 
-  const inactiveTop = 'w-full py-4 px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap';
-  const activeTop = 'w-full py-4 px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
-  ['today', 'calendar', 'records', 'checks'].forEach(id => {
+  const inactiveTop = 'w-full py-4 px-1 sm:px-2 text-gray-600 hover:text-slate-800 whitespace-nowrap';
+  const activeTop = 'w-full py-4 px-1 sm:px-2 text-slate-800 font-bold border-b-2 border-slate-800 whitespace-nowrap';
+  ['today', 'calendar', 'map', 'records', 'checks'].forEach(id => {
     document.getElementById(`tab-${id}`).className = (id === tabId) ? activeTop : inactiveTop;
   });
 
   const isMaster = MASTER_TABS.includes(tabId);
-  document.getElementById('tab-master').className = 'w-full py-4 px-2 whitespace-nowrap flex items-center justify-center gap-1 ' +
+  document.getElementById('tab-master').className = 'w-full py-4 px-1 sm:px-2 whitespace-nowrap flex items-center justify-center gap-1 ' +
     (isMaster ? 'text-slate-800 font-bold border-b-2 border-slate-800' : 'text-gray-600 hover:text-slate-800');
 
   const inactiveSub = 'block w-full text-left px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-slate-800';
@@ -231,6 +234,7 @@ function switchTab(tabId) {
 
   closeMasterMenu();
   if (tabId === 'records') loadRecordsView();
+  if (tabId === 'map') renderMapView();
 }
 
 // ── ナビの「マスタ管理」ドロップダウン ──
@@ -1696,6 +1700,7 @@ function openCompanyModal(data = null) {
     document.getElementById('c-freq-biweekly').checked = data.frequency === '隔週';
     document.getElementById('c-biweekly-anchor').value = data.biweekly_anchor || '';
     document.getElementById('c-exclude-holidays').checked = !!data.exclude_holidays;
+    document.getElementById('c-address').value = data.address || '';
   } else {
     document.getElementById('company-modal-title').innerText = '取引先の新規登録';
     document.getElementById('c-id').value = crypto.randomUUID();
@@ -1707,7 +1712,13 @@ function openCompanyModal(data = null) {
     document.getElementById('c-freq-weekly').checked = true;
     document.getElementById('c-freq-biweekly').checked = false;
     document.getElementById('c-exclude-holidays').checked = false;
+    document.getElementById('c-address').value = '';
   }
+  // 住所の列がまだDBに無い間は住所欄を出さない（列追加前でも従来どおり保存できるように）
+  document.getElementById('c-address-wrap').classList.toggle('hidden', !hasColumn('companies', 'address'));
+  const geoEl = document.getElementById('c-geo-status');
+  geoEl.className = 'text-[11px] text-gray-400 mt-1';
+  geoEl.textContent = data && data.address ? (data.lat != null ? '📍 地図の位置は登録済みです' : '⚠ 住所から位置を特定できていません') : '';
   onCompanyIrregularToggle();
   onCompanyFrequencyChange();
 }
@@ -1743,6 +1754,10 @@ async function submitCompany() {
       row.biweekly_anchor = null;
     }
   }
+  if (hasColumn('companies', 'address')) {
+    const ok = await applyCompanyAddress(row);
+    if (!ok) return;
+  }
   await upsertRow('companies', row);
   closeCompanyModal();
 }
@@ -1754,7 +1769,7 @@ function renderVehicles() {
   const list = document.getElementById('vehicles-list');
   list.innerHTML = db.vehicles.map(v => `
     <div class="bg-white p-4 rounded-md border border-gray-200 flex flex-col justify-between text-sm">
-      <div><h4 class="font-bold text-gray-900">${v.name}</h4><p class="text-xs text-gray-400">${v.type || '車種未指定'}</p>
+      <div><div class="flex items-center gap-2">${vehicleIconSvg(v, 40)}<h4 class="font-bold text-gray-900">${v.name}</h4></div><p class="text-xs text-gray-400">${v.type || '車種未指定'}</p>
         <div class="mt-2 space-y-0.5 text-xs text-gray-600"><p>🛠 車検満了: ${v.shaken_date || '未登録'}</p><p>📄 任意保険: ${v.insurance_date || '未登録'}</p></div>
       </div>
       <div class="flex justify-end gap-3 mt-3 pt-2 border-t border-gray-50 text-xs">
@@ -1772,6 +1787,7 @@ function openVehicleModal(data = null) {
     document.getElementById('v-shaken').value = data.shaken_date || '';
     document.getElementById('v-insurance').value = data.insurance_date || '';
     document.getElementById('v-note').value = data.note || '';
+    document.getElementById('v-icon').value = data.icon || '';
   } else {
     document.getElementById('v-id').value = crypto.randomUUID();
     document.getElementById('v-name').value = '';
@@ -1779,18 +1795,22 @@ function openVehicleModal(data = null) {
     document.getElementById('v-shaken').value = '';
     document.getElementById('v-insurance').value = '';
     document.getElementById('v-note').value = '';
+    document.getElementById('v-icon').value = '';
   }
+  document.getElementById('v-icon-wrap').classList.toggle('hidden', !hasColumn('vehicles', 'icon'));
 }
 function closeVehicleModal() { document.getElementById('vehicle-modal').classList.add('hidden'); }
 async function submitVehicle() {
   const id = document.getElementById('v-id').value;
-  await upsertRow('vehicles', {
+  const row = {
     id, name: document.getElementById('v-name').value,
     type: document.getElementById('v-type').value,
     shaken_date: document.getElementById('v-shaken').value || null,
     insurance_date: document.getElementById('v-insurance').value || null,
     note: document.getElementById('v-note').value,
-  });
+  };
+  if (hasColumn('vehicles', 'icon')) row.icon = document.getElementById('v-icon').value || null;
+  await upsertRow('vehicles', row);
   closeVehicleModal();
 }
 
@@ -1976,6 +1996,244 @@ async function exportCheckPdf() {
   } finally {
     document.body.removeChild(sheet);
   }
+}
+
+// ════════════════════════════════════════════════════════
+//  地図（OpenStreetMap + Leaflet、住所→緯度経度は国土地理院API）
+// ════════════════════════════════════════════════════════
+const HOME_LOCATION_SETTING_KEY = 'home_location'; // app_settingsに {address, lat, lng} のJSONで保存
+let mapObj = null;
+let mapLayer = null;
+let mapVehicleFilter = 'all';
+let mapRenderToken = 0;
+
+// 列追加（migrations/2026-10_map_columns.sql）の前後どちらでも動くよう、読み込んだ行に列があるかで判定する
+function hasColumn(table, col) {
+  const rows = db[table] || [];
+  return rows.length > 0 && rows.some(r => col in r);
+}
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+// 国土地理院の住所検索API（無料・キー不要）。見つからなければnull
+async function geocodeAddress(address) {
+  const res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(address));
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const json = await res.json();
+  if (!Array.isArray(json) || json.length === 0) return null;
+  const [lng, lat] = json[0].geometry.coordinates;
+  return { lat, lng, title: json[0].properties.title };
+}
+
+// 取引先の保存前に住所→緯度経度を変換して row に入れる。住所が変わったときだけ問い合わせる。
+// 位置が見つからなくても住所だけは保存できるよう、確認のうえ続行する。falseなら保存を中止。
+async function applyCompanyAddress(row) {
+  const address = document.getElementById('c-address').value.trim();
+  const prev = db.companies.find(c => String(c.id) === String(row.id));
+  row.address = address || null;
+  if (!address) { row.lat = null; row.lng = null; return true; }
+  if (prev && prev.address === address && prev.lat != null) return true;
+  const geoEl = document.getElementById('c-geo-status');
+  geoEl.className = 'text-[11px] text-gray-500 mt-1';
+  geoEl.textContent = '位置を調べています...';
+  let hit = null;
+  try { hit = await geocodeAddress(address); } catch (e) { hit = null; }
+  if (hit) {
+    row.lat = hit.lat; row.lng = hit.lng;
+    return true;
+  }
+  row.lat = null; row.lng = null;
+  geoEl.className = 'text-[11px] text-red-500 mt-1';
+  geoEl.textContent = '⚠ この住所から位置を特定できませんでした';
+  return confirm('住所から地図の位置を特定できませんでした。\n住所だけ保存して、地図には表示しない状態にしますか？');
+}
+
+// ── 車アイコン ──
+// vehicles.icon が空なら車両名・車種から推測する（ハイエース→hi 等）
+function vehicleIconKind(v) {
+  if (!v) return 'van';
+  if (v.icon) return v.icon;
+  const name = `${v.name || ''}`;
+  const type = `${v.type || ''}`;
+  if (/ハイエース|キャラバン/.test(name)) return 'hi';
+  if (/バネット/.test(name)) return 'van';
+  if (/キャンター|エルフ|ダイナ|トラック/.test(name + type) || /\dt/.test(type)) return 'truck';
+  if (/ミニキャブ|ハイゼット|エブリ/.test(name) || /軽バン/.test(type)) return 'mini';
+  if (/ek|ＥＫ|ｅｋ/i.test(name) || /軽/.test(type)) return 'ek';
+  return 'van';
+}
+
+// 同じ種類が複数台ある場合（ハイエース×2など）は左上に番号を付けて見分ける
+function vehicleIconNumber(v) {
+  const kind = vehicleIconKind(v);
+  const same = db.vehicles.filter(x => vehicleIconKind(x) === kind && !/廃車/.test(x.name || ''));
+  if (same.length < 2) return '';
+  const idx = same.findIndex(x => String(x.id) === String(v.id));
+  return idx >= 0 ? String(idx + 1) : '';
+}
+
+function vehicleIconSvg(v, width = 56) {
+  const kind = v ? vehicleIconKind(v) : 'van';
+  return `<svg width="${width}" height="${width / 2}" viewBox="0 0 80 40"${v ? '' : ' style="opacity:.45"'}><use href="#c-${kind}"/></svg>`;
+}
+
+function carMarkerHtml(v, entry) {
+  const num = v ? vehicleIconNumber(v) : '';
+  const badges = (entry.hasDelivery ? '<span class="badge del">納</span>' : '') + (entry.hasPickup ? '<span class="badge pick">引</span>' : '');
+  return `<div class="car-marker">${vehicleIconSvg(v)}${num ? `<span class="num">${num}</span>` : ''}<span class="badges">${badges}</span></div>`;
+}
+
+function getHomeLocation() {
+  try { return JSON.parse(appSettings[HOME_LOCATION_SETTING_KEY] || 'null'); } catch (e) { return null; }
+}
+
+function ensureMap() {
+  if (mapObj) return mapObj;
+  mapObj = L.map('map-canvas', { zoomControl: true });
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(mapObj);
+  mapLayer = L.layerGroup().addTo(mapObj);
+  mapObj.setView([36.5, 137.5], 5);
+  return mapObj;
+}
+
+function changeMapDate(diff) {
+  const el = document.getElementById('map-date');
+  const d = parseDate(el.value || todayStr);
+  d.setDate(d.getDate() + diff);
+  el.value = fmtDate(d);
+  renderMapView();
+}
+function setMapDateToday() {
+  document.getElementById('map-date').value = todayStr;
+  renderMapView();
+}
+
+function buildMapVtabs(entries) {
+  const bar = document.getElementById('map-vtab-bar');
+  bar.innerHTML = '';
+  const mk = (label, id) => {
+    const btn = document.createElement('button');
+    btn.className = `vtab ${String(mapVehicleFilter) === String(id) ? 'active' : ''}`;
+    btn.textContent = label;
+    btn.onclick = () => { mapVehicleFilter = id; renderMapView(); };
+    bar.appendChild(btn);
+  };
+  mk('すべて', 'all');
+  db.vehicles.forEach(v => {
+    if (!entries.some(e => String(e.vehicleId) === String(v.id))) return;
+    mk(v.name, v.id);
+  });
+}
+
+async function renderMapView() {
+  if (typeof L === 'undefined') {
+    document.getElementById('map-summary').textContent = '地図を読み込めませんでした（通信をご確認ください）';
+    return;
+  }
+  const token = ++mapRenderToken;
+  const fd = document.getElementById('map-date').value || todayStr;
+  const dObj = parseDate(fd);
+
+  // その日の例外（スポット便・休み）だけ取得し、共有キャッシュは壊さない
+  const { data } = await sb.from('dispatch_days').select('*').eq('date', fd);
+  if (token !== mapRenderToken) return;
+  const cache = new Map(), byDate = new Map();
+  (data || []).forEach(row => {
+    cache.set(`${row.date}|${row.company_name}`, row);
+    if (!byDate.has(row.date)) byDate.set(row.date, []);
+    byDate.get(row.date).push(row);
+  });
+  const all = getScheduledCompaniesForDate(dObj, cache, byDate);
+  if (mapVehicleFilter !== 'all' && !all.some(e => String(e.vehicleId) === String(mapVehicleFilter))) mapVehicleFilter = 'all';
+  buildMapVtabs(all);
+  const entries = mapVehicleFilter === 'all' ? all : all.filter(e => String(e.vehicleId) === String(mapVehicleFilter));
+
+  const map = ensureMap();
+  // 非表示のタブで作った地図はサイズが0なので、表示後に測り直す
+  setTimeout(() => map.invalidateSize(), 0);
+  mapLayer.clearLayers();
+  const bounds = [];
+  const missing = [];
+  const stackCount = new Map(); // 同じ地点に複数便がある場合は少しずらして重ならないようにする
+
+  entries.forEach(e => {
+    const c = db.companies.find(x => (e.companyId && String(x.id) === String(e.companyId)) || x.name === e.name);
+    if (!c || c.lat == null || c.lng == null) { missing.push(e.name); return; }
+    const key = `${c.lat.toFixed(5)},${c.lng.toFixed(5)}`;
+    const n = stackCount.get(key) || 0;
+    stackCount.set(key, n + 1);
+    const v = db.vehicles.find(x => String(x.id) === String(e.vehicleId));
+    const icon = L.divIcon({ className: '', html: carMarkerHtml(v, e), iconSize: [56, 28], iconAnchor: [28 - n * 14, 28 + n * 10] });
+    const drv = db.drivers.find(x => String(x.id) === String(e.driverId));
+    const kinds = [e.hasDelivery ? '納品' : '', e.hasPickup ? '引取' : ''].filter(Boolean).join('・');
+    const popup = `<div style="font-size:12px;line-height:1.5"><b>${escHtml(e.name)}</b><br>`
+      + `${escHtml(v ? v.name : '車両未定')}${drv ? ' / ' + escHtml(drv.name) : ''}<br>`
+      + `${e.time ? escHtml(e.time.slice(0, 5)) + ' ' : ''}${kinds}${e.type === 'spot' ? '（スポット）' : ''}`
+      + `${e.memo ? '<br><span style="color:#6b7280">' + escHtml(e.memo) + '</span>' : ''}`
+      + `${c.address ? '<br><span style="color:#9ca3af">' + escHtml(c.address) + '</span>' : ''}</div>`;
+    L.marker([c.lat, c.lng], { icon, title: e.name }).bindPopup(popup).addTo(mapLayer);
+    bounds.push([c.lat, c.lng]);
+  });
+
+  const home = getHomeLocation();
+  if (home && home.lat != null) {
+    L.marker([home.lat, home.lng], {
+      icon: L.divIcon({ className: '', html: '<div class="home-marker">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+      title: '自社', zIndexOffset: -100,
+    }).bindPopup(`<div style="font-size:12px"><b>自社</b><br>${escHtml(home.address || '')}</div>`).addTo(mapLayer);
+    bounds.push([home.lat, home.lng]);
+  }
+
+  if (bounds.length === 1) map.setView(bounds[0], 13);
+  else if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+
+  document.getElementById('map-summary').textContent =
+    `${dObj.getMonth() + 1}月${dObj.getDate()}日（${DOW_JP[dObj.getDay()]}） ${entries.length}件`;
+
+  // 凡例：その日に走る車両ごとの件数
+  const counts = new Map();
+  entries.forEach(e => counts.set(String(e.vehicleId || ''), (counts.get(String(e.vehicleId || '')) || 0) + 1));
+  document.getElementById('map-legend').innerHTML = [...counts.entries()].map(([vid, cnt]) => {
+    const v = db.vehicles.find(x => String(x.id) === vid);
+    const num = v ? vehicleIconNumber(v) : '';
+    return `<span class="flex items-center gap-1">${vehicleIconSvg(v, 32)}${escHtml(v ? v.name : '車両未定')}${num ? `（${num}）` : ''} ${cnt}件</span>`;
+  }).join('') + '<span class="flex items-center gap-1"><span class="inline-block w-3.5 h-3.5 rounded-full bg-green-600 text-white text-[9px] font-bold text-center leading-[14px]">納</span>納品 <span class="inline-block w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[9px] font-bold text-center leading-[14px] ml-2">引</span>引取</span>';
+
+  const missingEl = document.getElementById('map-missing');
+  if (!hasColumn('companies', 'lat')) missingEl.textContent = '取引先の住所がまだ登録できない状態です（データベースの準備が必要です）。';
+  else missingEl.textContent = missing.length ? `住所未登録のため地図に出ていない配送先：${missing.join('、')}` : '';
+}
+
+// ── 自社の位置（app_settingsで全端末共有） ──
+function openHomeLocationModal() {
+  const home = getHomeLocation();
+  document.getElementById('home-address').value = (home && home.address) || '';
+  document.getElementById('home-geo-status').textContent = home && home.lat != null ? '📍 登録済みです' : '';
+  document.getElementById('home-modal').classList.remove('hidden');
+}
+function closeHomeLocationModal() { document.getElementById('home-modal').classList.add('hidden'); }
+async function submitHomeLocation() {
+  const address = document.getElementById('home-address').value.trim();
+  const st = document.getElementById('home-geo-status');
+  let value = null;
+  if (address) {
+    st.textContent = '位置を調べています...';
+    let hit = null;
+    try { hit = await geocodeAddress(address); } catch (e) { hit = null; }
+    if (!hit) { st.textContent = '⚠ この住所から位置を特定できませんでした'; return; }
+    value = JSON.stringify({ address, lat: hit.lat, lng: hit.lng });
+  }
+  const { error } = await sb.from('app_settings').upsert({ key: HOME_LOCATION_SETTING_KEY, value }, { onConflict: 'key' });
+  if (error) { updateStatus('error', '保存に失敗: ' + error.message); return; }
+  appSettings[HOME_LOCATION_SETTING_KEY] = value;
+  updateStatus('success', '保存しました');
+  closeHomeLocationModal();
+  renderMapView();
 }
 
 // ════════════════════════════════════════════════════════
