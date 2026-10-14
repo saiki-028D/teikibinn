@@ -2097,9 +2097,10 @@ function getHomeLocation() {
 function ensureMap() {
   if (mapObj) return mapObj;
   mapObj = L.map('map-canvas', { zoomControl: true });
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  // 国土地理院の「淡色地図」：線や色が少なく、吹き出しが見やすい（無料・キー不要）
+  L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+    maxZoom: 18,
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>',
   }).addTo(mapObj);
   mapLayer = L.layerGroup().addTo(mapObj);
   mapObj.setView([36.5, 137.5], 5);

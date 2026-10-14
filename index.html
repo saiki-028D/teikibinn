@@ -26,8 +26,8 @@
     .vtab-bar::-webkit-scrollbar { height: 0; }
     .missing-row { background: #fef2f2 !important; border-color: #fecaca !important; }
     #map-canvas { height: 60vh; min-height: 320px; border-radius: 6px; z-index: 0; }
-    /* 地図：下地を薄いグレーにして、吹き出しを目立たせる */
-    #map-canvas .leaflet-tile-pane { filter: grayscale(1) brightness(1.08) contrast(.8); opacity: .75; }
+    /* 地図：下地の色味を少し抑えて、吹き出しを目立たせる */
+    #map-canvas .leaflet-tile-pane { filter: saturate(.6); }
     .car-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; }
     .car-pin .head { position: relative; background: #fff; border: 2px solid var(--c); border-radius: 8px; padding: 2px 6px 3px; box-shadow: 0 2px 6px rgba(0,0,0,.3); display: flex; flex-direction: column; align-items: center; }
     .car-pin .head svg { display: block; }
