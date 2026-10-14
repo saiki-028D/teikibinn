@@ -2079,10 +2079,15 @@ function vehicleIconSvg(v, width = 56) {
   return `<svg width="${width}" height="${width / 2}" viewBox="0 0 80 40"${v ? '' : ' style="opacity:.45"'}><use href="#c-${kind}"/></svg>`;
 }
 
-function carMarkerHtml(v, entry) {
+// 吹き出し型のマーカー：枠の色＝車両の色、中に車アイコンと社名
+function carMarkerHtml(v, entry, shift = 0) {
   const num = v ? vehicleIconNumber(v) : '';
+  const color = getVehicleColor(v ? v.id : null).dot;
   const badges = (entry.hasDelivery ? '<span class="badge del">納</span>' : '') + (entry.hasPickup ? '<span class="badge pick">引</span>' : '');
-  return `<div class="car-marker">${vehicleIconSvg(v)}${num ? `<span class="num">${num}</span>` : ''}<span class="badges">${badges}</span></div>`;
+  return `<div class="car-pin" style="--c:${color};${shift ? `margin-left:${shift}px;` : ''}">`
+    + `<div class="head">${vehicleIconSvg(v, 44)}<span class="name">${escHtml(entry.name)}</span>`
+    + `${num ? `<span class="num">${num}</span>` : ''}<span class="badges">${badges}</span></div>`
+    + `<div class="tail"></div></div>`;
 }
 
 function getHomeLocation() {
@@ -2168,7 +2173,9 @@ async function renderMapView() {
     const n = stackCount.get(key) || 0;
     stackCount.set(key, n + 1);
     const v = db.vehicles.find(x => String(x.id) === String(e.vehicleId));
-    const icon = L.divIcon({ className: '', html: carMarkerHtml(v, e), iconSize: [56, 28], iconAnchor: [28 - n * 14, 28 + n * 10] });
+    // 同じ地点に複数便があるときは横にずらして並べる
+    const shift = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 70;
+    const icon = L.divIcon({ className: '', html: carMarkerHtml(v, e, shift), iconSize: [0, 0], iconAnchor: [0, 0] });
     const drv = db.drivers.find(x => String(x.id) === String(e.driverId));
     const kinds = [e.hasDelivery ? '納品' : '', e.hasPickup ? '引取' : ''].filter(Boolean).join('・');
     const popup = `<div style="font-size:12px;line-height:1.5"><b>${escHtml(e.name)}</b><br>`
@@ -2183,7 +2190,7 @@ async function renderMapView() {
   const home = getHomeLocation();
   if (home && home.lat != null) {
     L.marker([home.lat, home.lng], {
-      icon: L.divIcon({ className: '', html: '<div class="home-marker">🏠</div>', iconSize: [24, 24], iconAnchor: [12, 12] }),
+      icon: L.divIcon({ className: '', html: '<div class="home-marker">🏠</div>', iconSize: [28, 28], iconAnchor: [14, 14] }),
       title: '自社', zIndexOffset: -100,
     }).bindPopup(`<div style="font-size:12px"><b>自社</b><br>${escHtml(home.address || '')}</div>`).addTo(mapLayer);
     bounds.push([home.lat, home.lng]);
@@ -2201,7 +2208,8 @@ async function renderMapView() {
   document.getElementById('map-legend').innerHTML = [...counts.entries()].map(([vid, cnt]) => {
     const v = db.vehicles.find(x => String(x.id) === vid);
     const num = v ? vehicleIconNumber(v) : '';
-    return `<span class="flex items-center gap-1">${vehicleIconSvg(v, 32)}${escHtml(v ? v.name : '車両未定')}${num ? `（${num}）` : ''} ${cnt}件</span>`;
+    const color = getVehicleColor(v ? v.id : null).dot;
+    return `<span class="flex items-center gap-1"><span style="border:2px solid ${color};border-radius:5px;background:#fff;padding:0 2px;display:inline-flex">${vehicleIconSvg(v, 30)}</span>${escHtml(v ? v.name : '車両未定')}${num ? `（${num}）` : ''} ${cnt}件</span>`;
   }).join('') + '<span class="flex items-center gap-1"><span class="inline-block w-3.5 h-3.5 rounded-full bg-green-600 text-white text-[9px] font-bold text-center leading-[14px]">納</span>納品 <span class="inline-block w-3.5 h-3.5 rounded-full bg-blue-600 text-white text-[9px] font-bold text-center leading-[14px] ml-2">引</span>引取</span>';
 
   const missingEl = document.getElementById('map-missing');

@@ -26,14 +26,19 @@
     .vtab-bar::-webkit-scrollbar { height: 0; }
     .missing-row { background: #fef2f2 !important; border-color: #fecaca !important; }
     #map-canvas { height: 60vh; min-height: 320px; border-radius: 6px; z-index: 0; }
-    .car-marker { position: relative; }
-    .car-marker svg { display: block; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
-    .car-marker .num { position: absolute; left: 0; top: 0; font-size: 10px; font-weight: 700; line-height: 1; background: #1e293b; color: #fff; border-radius: 3px; padding: 1px 3px; }
-    .car-marker .badges { position: absolute; right: -4px; top: -6px; display: flex; gap: 1px; }
-    .car-marker .badge { font-size: 9px; font-weight: 700; color: #fff; border-radius: 50%; width: 14px; height: 14px; display: flex; align-items: center; justify-content: center; border: 1px solid #fff; }
-    .car-marker .badge.del { background: #16a34a; }
-    .car-marker .badge.pick { background: #2563eb; }
-    .home-marker { font-size: 22px; line-height: 1; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
+    /* 地図：下地を薄いグレーにして、吹き出しを目立たせる */
+    #map-canvas .leaflet-tile-pane { filter: grayscale(1) brightness(1.08) contrast(.8); opacity: .75; }
+    .car-pin { position: absolute; left: 0; top: 0; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; }
+    .car-pin .head { position: relative; background: #fff; border: 2px solid var(--c); border-radius: 8px; padding: 2px 6px 3px; box-shadow: 0 2px 6px rgba(0,0,0,.3); display: flex; flex-direction: column; align-items: center; }
+    .car-pin .head svg { display: block; }
+    .car-pin .name { font-size: 11px; font-weight: 700; color: #1e293b; white-space: nowrap; line-height: 1.2; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+    .car-pin .tail { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid var(--c); margin-top: -1px; }
+    .car-pin .num { position: absolute; left: -7px; top: -7px; font-size: 10px; font-weight: 700; line-height: 1; background: #1e293b; color: #fff; border-radius: 3px; padding: 2px 4px; }
+    .car-pin .badges { position: absolute; right: -8px; top: -8px; display: flex; gap: 1px; }
+    .car-pin .badge { font-size: 9px; font-weight: 700; color: #fff; border-radius: 50%; width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; border: 1.5px solid #fff; }
+    .car-pin .badge.del { background: #16a34a; }
+    .car-pin .badge.pick { background: #2563eb; }
+    .home-marker { font-size: 26px; line-height: 1; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
     #calendar-grid > button.cal-selected { outline: 3px solid #2563eb; outline-offset: 1px; z-index: 1; opacity: 1 !important; }
     @media print {
       .no-print { display: none !important; }
