@@ -2090,6 +2090,12 @@ function carMarkerHtml(v, entry, shift = 0) {
     + `<div class="tail"></div></div>`;
 }
 
+// 吹き出しをタップ → Googleマップでその取引先を開く（スマホではマップアプリが開き、そのままナビにも使える）
+function googleMapsUrl(c) {
+  const q = c.address ? `${c.address} ${c.name}` : `${c.lat},${c.lng}`;
+  return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(q);
+}
+
 function getHomeLocation() {
   try { return JSON.parse(appSettings[HOME_LOCATION_SETTING_KEY] || 'null'); } catch (e) { return null; }
 }
@@ -2183,7 +2189,8 @@ async function renderMapView() {
       + `${escHtml(v ? v.name : '車両未定')}${drv ? ' / ' + escHtml(drv.name) : ''}<br>`
       + `${e.time ? escHtml(e.time.slice(0, 5)) + ' ' : ''}${kinds}${e.type === 'spot' ? '（スポット）' : ''}`
       + `${e.memo ? '<br><span style="color:#6b7280">' + escHtml(e.memo) + '</span>' : ''}`
-      + `${c.address ? '<br><span style="color:#9ca3af">' + escHtml(c.address) + '</span>' : ''}</div>`;
+      + `${c.address ? '<br><span style="color:#9ca3af">' + escHtml(c.address) + '</span>' : ''}`
+      + `<br><a href="${googleMapsUrl(c)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px;font-weight:700">📍 Googleマップで開く</a></div>`;
     L.marker([c.lat, c.lng], { icon, title: e.name }).bindPopup(popup).addTo(mapLayer);
     bounds.push([c.lat, c.lng]);
   });
