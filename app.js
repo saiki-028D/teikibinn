@@ -1548,6 +1548,7 @@ async function submitDeliveryReport() {
   if (d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth) await loadRecordsRange(...Object.values(monthRange(currentYear, currentMonth)));
   if (deliveryTargetDate === todayStr) renderFinalList();
   if (activeTab === 'calendar') showCalendarDetail(d.getDate());
+  if (activeTab === 'map') { mapObj && mapObj.closePopup(); renderMapView(); }
   if (activeTab === 'records') loadRecordsView();
 }
 
@@ -2080,11 +2081,14 @@ function vehicleIconSvg(v, width = 56) {
 }
 
 // 吹き出し型のマーカー：枠の色＝車両の色、中に車アイコンと社名
-function carMarkerHtml(v, entry, shift = 0) {
+// 配送実績が記録済み（＝完了）の便はグレー表示にし、残りの行き先が目立つようにする
+function carMarkerHtml(v, entry, shift = 0, done = false) {
   const num = v ? vehicleIconNumber(v) : '';
-  const color = getVehicleColor(v ? v.id : null).dot;
-  const badges = (entry.hasDelivery ? '<span class="badge del">納</span>' : '') + (entry.hasPickup ? '<span class="badge pick">引</span>' : '');
-  return `<div class="car-pin" style="--c:${color};${shift ? `margin-left:${shift}px;` : ''}">`
+  const color = done ? '#9ca3af' : getVehicleColor(v ? v.id : null).dot;
+  const badges = done
+    ? '<span class="badge done">✓</span>'
+    : (entry.hasDelivery ? '<span class="badge del">納</span>' : '') + (entry.hasPickup ? '<span class="badge pick">引</span>' : '');
+  return `<div class="car-pin${done ? ' done' : ''}" style="--c:${color};${shift ? `margin-left:${shift}px;` : ''}">`
     + `<div class="head">${vehicleIconSvg(v, 44)}<span class="name">${escHtml(entry.name)}</span>`
     + `${num ? `<span class="num">${num}</span>` : ''}<span class="badges">${badges}</span></div>`
     + `<div class="tail"></div></div>`;
@@ -2152,8 +2156,12 @@ async function renderMapView() {
   const dObj = parseDate(fd);
 
   // その日の例外（スポット便・休み）だけ取得し、共有キャッシュは壊さない
-  const { data } = await sb.from('dispatch_days').select('*').eq('date', fd);
+  const [{ data }, { data: recs }] = await Promise.all([
+    sb.from('dispatch_days').select('*').eq('date', fd),
+    sb.from('delivery_records').select('company_name, saved_at').eq('date', fd),
+  ]);
   if (token !== mapRenderToken) return;
+  const doneMap = new Map((recs || []).map(r => [r.company_name, r]));
   const cache = new Map(), byDate = new Map();
   (data || []).forEach(row => {
     cache.set(`${row.date}|${row.company_name}`, row);
@@ -2171,6 +2179,7 @@ async function renderMapView() {
   mapLayer.clearLayers();
   const bounds = [];
   const missing = [];
+  let doneCount = 0;
   const stackCount = new Map(); // 同じ地点に複数便がある場合は少しずらして重ならないようにする
 
   entries.forEach(e => {
@@ -2182,7 +2191,10 @@ async function renderMapView() {
     const v = db.vehicles.find(x => String(x.id) === String(e.vehicleId));
     // 同じ地点に複数便があるときは横にずらして並べる
     const shift = n === 0 ? 0 : (n % 2 ? 1 : -1) * Math.ceil(n / 2) * 70;
-    const icon = L.divIcon({ className: '', html: carMarkerHtml(v, e, shift), iconSize: [0, 0], iconAnchor: [0, 0] });
+    const rec = doneMap.get(e.name);
+    const doneTime = rec && rec.saved_at ? new Date(rec.saved_at).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }) : '';
+    if (rec) doneCount++;
+    const icon = L.divIcon({ className: '', html: carMarkerHtml(v, e, shift, !!rec), iconSize: [0, 0], iconAnchor: [0, 0] });
     const drv = db.drivers.find(x => String(x.id) === String(e.driverId));
     const kinds = [e.hasDelivery ? '納品' : '', e.hasPickup ? '引取' : ''].filter(Boolean).join('・');
     const popup = `<div style="font-size:12px;line-height:1.5"><b>${escHtml(e.name)}</b><br>`
@@ -2190,8 +2202,12 @@ async function renderMapView() {
       + `${e.time ? escHtml(e.time.slice(0, 5)) + ' ' : ''}${kinds}${e.type === 'spot' ? '（スポット）' : ''}`
       + `${e.memo ? '<br><span style="color:#6b7280">' + escHtml(e.memo) + '</span>' : ''}`
       + `${c.address ? '<br><span style="color:#9ca3af">' + escHtml(c.address) + '</span>' : ''}`
-      + `<br><a href="${googleMapsUrl(c)}" target="_blank" rel="noopener" style="display:inline-block;margin-top:4px;font-weight:700">📍 Googleマップで開く</a></div>`;
-    L.marker([c.lat, c.lng], { icon, title: e.name }).bindPopup(popup).addTo(mapLayer);
+      + `${rec ? `<br><span style="color:#059669;font-weight:700">✅ 完了${doneTime ? ' ' + doneTime : ''}</span>` : ''}`
+      + `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">`
+      + `<a href="${googleMapsUrl(c)}" target="_blank" rel="noopener" style="font-weight:700">📍 Googleマップで開く</a>`
+      + `<a href="#" onclick="openDeliveryModal('${escQ(e.name)}','${fd}');return false;" style="font-weight:700">${rec ? '📝 記録を見る' : '📸 完了を記録'}</a>`
+      + `</div></div>`;
+    L.marker([c.lat, c.lng], { icon, title: e.name, zIndexOffset: rec ? -50 : 0 }).bindPopup(popup).addTo(mapLayer);
     bounds.push([c.lat, c.lng]);
   });
 
@@ -2208,7 +2224,7 @@ async function renderMapView() {
   else if (bounds.length > 1) map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
 
   document.getElementById('map-summary').textContent =
-    `${dObj.getMonth() + 1}月${dObj.getDate()}日（${DOW_JP[dObj.getDay()]}） ${entries.length}件`;
+    `${dObj.getMonth() + 1}月${dObj.getDate()}日（${DOW_JP[dObj.getDay()]}） ${entries.length}件${doneCount ? `（完了 ${doneCount}件）` : ''}`;
 
   // 凡例：その日に走る車両ごとの件数
   const counts = new Map();
