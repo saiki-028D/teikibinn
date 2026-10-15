@@ -71,11 +71,11 @@
       <h1 class="text-lg font-bold text-gray-800 text-center">🚚 車両・配送管理システム</h1>
       <p class="text-xs text-gray-400 text-center">社内共有のログイン情報を入力してください</p>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">メールアドレス</label>
+        <label class="block text-xs text-gray-900 mb-1">メールアドレス</label>
         <input type="email" id="login-email" required class="w-full border p-2 rounded text-sm" autocomplete="username">
       </div>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">パスワード</label>
+        <label class="block text-xs text-gray-900 mb-1">パスワード</label>
         <input type="password" id="login-password" required class="w-full border p-2 rounded text-sm" autocomplete="current-password">
       </div>
       <p id="login-error" class="text-xs text-red-600 hidden"></p>
@@ -242,12 +242,12 @@
       <section id="view-records" class="tab-content hidden space-y-4">
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">実績一覧</h2>
         <div class="bg-white p-4 rounded-md border border-gray-200 grid grid-cols-2 sm:grid-cols-4 gap-2 items-end">
-          <div><label class="block text-xs text-gray-500 mb-1">開始日</label><input type="date" id="rec-from" class="w-full border p-2 rounded text-sm"></div>
-          <div><label class="block text-xs text-gray-500 mb-1">終了日</label><input type="date" id="rec-to" class="w-full border p-2 rounded text-sm"></div>
-          <div><label class="block text-xs text-gray-500 mb-1">取引先</label><select id="rec-company" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">車両</label><select id="rec-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
+          <div><label class="block text-xs text-gray-900 mb-1">開始日</label><input type="date" id="rec-from" class="w-full border p-2 rounded text-sm"></div>
+          <div><label class="block text-xs text-gray-900 mb-1">終了日</label><input type="date" id="rec-to" class="w-full border p-2 rounded text-sm"></div>
+          <div><label class="block text-xs text-gray-900 mb-1">取引先</label><select id="rec-company" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
+          <div><label class="block text-xs text-gray-900 mb-1">車両</label><select id="rec-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">すべて</option></select></div>
           <div class="col-span-2 sm:col-span-4">
-            <label class="flex items-center gap-2 text-xs text-gray-600"><input type="checkbox" id="rec-missing-only" class="w-4 h-4"> 未記録のみ表示</label>
+            <label class="flex items-center gap-2 text-xs text-gray-900"><input type="checkbox" id="rec-missing-only" class="w-4 h-4"> 未記録のみ表示</label>
           </div>
           <div class="col-span-2 sm:col-span-4">
             <button onclick="loadRecordsView()" class="w-full bg-slate-800 text-white p-2.5 rounded-md font-bold hover:bg-slate-900 transition text-sm">検索する</button>
@@ -294,10 +294,10 @@
       <section id="view-checks" class="tab-content hidden space-y-4">
         <h2 class="text-xl font-bold border-l-4 border-blue-600 pl-2">月次点検表（26項目）</h2>
         <div class="bg-white p-4 rounded-md border border-gray-200 flex flex-wrap gap-3 items-end">
-          <div><label class="block text-xs text-gray-500 mb-1">対象車両</label><select id="check-vehicle" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">点検年</label><select id="check-year" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div><label class="block text-xs text-gray-500 mb-1">点検月</label><select id="check-month" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
-          <div class="flex-1 min-w-[160px]"><label class="block text-xs text-gray-500 mb-1">点検者名</label><input type="text" id="check-inspector" placeholder="例: 田中 太郎" class="w-full border p-2 rounded text-sm"></div>
+          <div><label class="block text-xs text-gray-900 mb-1">対象車両</label><select id="check-vehicle" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div><label class="block text-xs text-gray-900 mb-1">点検年</label><select id="check-year" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div><label class="block text-xs text-gray-900 mb-1">点検月</label><select id="check-month" class="border p-2 rounded text-sm bg-gray-50" onchange="loadCheckData()"></select></div>
+          <div class="flex-1 min-w-[160px]"><label class="block text-xs text-gray-900 mb-1">点検者名</label><input type="text" id="check-inspector" placeholder="例: 田中 太郎" class="w-full border p-2 rounded text-sm"></div>
         </div>
         <div id="check-form-container" class="bg-white rounded-md border border-gray-200 p-4 space-y-6"></div>
         <div class="bg-white p-4 rounded-md border border-gray-200 space-y-2">
@@ -334,14 +334,14 @@
         <span class="text-xs font-bold text-blue-900 block border-b border-blue-200 pb-1">🚚 納品の記録</span>
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-[11px] font-bold text-gray-500">納品写真（最大10枚・PCはドラッグ&ドロップも可）</label>
+            <label class="text-[11px] font-bold text-gray-900">納品写真（最大10枚・PCはドラッグ&ドロップも可）</label>
             <span id="nouhin-count" class="text-[10px] text-gray-400">0 / 10</span>
           </div>
           <div class="photo-grid" id="nouhin-photo-grid" ondragover="handlePhotoDragOver(event)" ondragleave="handlePhotoDragLeave(event)" ondrop="handlePhotoDrop('nouhin', event)"></div>
           <input type="file" id="nouhin-file-input" accept="image/*" multiple class="hidden" onchange="handlePhotoSelect('nouhin', event)">
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-gray-500 mb-1">納品メモ</label>
+          <label class="block text-[11px] font-bold text-gray-900 mb-1">納品メモ</label>
           <textarea id="nouhin-memo" placeholder="例: 納品ケース数、受領サインなど" class="w-full border border-gray-200 p-2 rounded text-xs bg-white resize-none" rows="2"></textarea>
         </div>
       </div>
@@ -349,19 +349,19 @@
         <span class="text-xs font-bold text-green-900 block border-b border-green-200 pb-1">🔄 引取の記録</span>
         <div>
           <div class="flex items-center justify-between mb-1">
-            <label class="text-[11px] font-bold text-gray-500">引取写真（最大10枚・PCはドラッグ&ドロップも可）</label>
+            <label class="text-[11px] font-bold text-gray-900">引取写真（最大10枚・PCはドラッグ&ドロップも可）</label>
             <span id="hikitori-count" class="text-[10px] text-gray-400">0 / 10</span>
           </div>
           <div class="photo-grid" id="hikitori-photo-grid" ondragover="handlePhotoDragOver(event)" ondragleave="handlePhotoDragLeave(event)" ondrop="handlePhotoDrop('hikitori', event)"></div>
           <input type="file" id="hikitori-file-input" accept="image/*" multiple class="hidden" onchange="handlePhotoSelect('hikitori', event)">
         </div>
         <div>
-          <label class="block text-[11px] font-bold text-gray-500 mb-1">引取メモ</label>
+          <label class="block text-[11px] font-bold text-gray-900 mb-1">引取メモ</label>
           <textarea id="hikitori-memo" placeholder="例: 空パレット回収数、持ち帰り資材など" class="w-full border border-gray-200 p-2 rounded text-xs bg-white resize-none" rows="2"></textarea>
         </div>
       </div>
       <div>
-        <label class="block text-[11px] font-bold text-gray-500 mb-1">記入者（任意）</label>
+        <label class="block text-[11px] font-bold text-gray-900 mb-1">記入者（任意）</label>
         <select id="delivery-saved-by" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
       <div class="flex justify-end gap-2 text-sm pt-2 border-t">
@@ -381,9 +381,9 @@
     <div class="bg-white p-6 rounded-md w-full max-w-sm space-y-4">
       <h3 class="text-lg font-bold">ドライバーの登録</h3>
       <input type="hidden" id="d-id">
-      <div><label class="block text-xs text-gray-500 mb-1">名前</label><input type="text" id="d-name" placeholder="例: 田中 一郎" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">名前</label><input type="text" id="d-name" placeholder="例: 田中 一郎" class="w-full border p-2 rounded text-sm"></div>
       <div>
-        <label class="block text-xs text-gray-500 mb-2">担当曜日（複数選択可）</label>
+        <label class="block text-xs text-gray-900 mb-2">担当曜日（複数選択可）</label>
         <div class="flex gap-2 flex-wrap">
           <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-mon" class="accent-slate-800">月</label>
           <label class="flex items-center gap-1 text-sm"><input type="checkbox" id="d-tue" class="accent-slate-800">火</label>
@@ -395,10 +395,10 @@
         </div>
       </div>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">担当車両</label>
+        <label class="block text-xs text-gray-900 mb-1">担当車両</label>
         <select id="d-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
-      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">備考</label><input type="text" id="d-note" placeholder="例: 大型免許あり" class="w-full border p-2 rounded text-sm"></div>
       <div class="flex justify-end gap-2 text-sm">
         <button onclick="closeDriverModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
         <button onclick="submitDriver()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
@@ -411,9 +411,9 @@
     <div class="bg-white p-6 rounded-md border border-gray-200 w-full max-w-md space-y-4 my-6">
       <h3 id="company-modal-title" class="text-lg font-bold">取引先の登録</h3>
       <input type="hidden" id="c-id">
-      <div><label class="block text-xs text-gray-500 mb-1">会社名・取引先名</label><input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">会社名・取引先名</label><input type="text" id="c-name" placeholder="例: ○○工業 A工場" class="w-full border p-2 rounded text-sm"></div>
 
-      <label class="flex items-center gap-2 text-xs text-gray-600 -mb-1">
+      <label class="flex items-center gap-2 text-xs text-gray-900 -mb-1">
         <input type="checkbox" id="c-irregular" class="w-4 h-4" onchange="onCompanyIrregularToggle()">
         不定期・かんばん次第（曜日を固定しない）
       </label>
@@ -421,7 +421,7 @@
       <div id="c-regular-fields" class="space-y-3 border border-gray-100 bg-gray-50/60 rounded-md p-3">
         <div>
           <div class="flex items-center justify-between mb-2">
-            <label class="block text-xs font-bold text-gray-500">曜日（複数選択可）</label>
+            <label class="block text-xs font-bold text-gray-900">曜日（複数選択可）</label>
             <button type="button" onclick="setCompanyWeekdays()" class="text-[11px] text-indigo-600 underline">月〜金をまとめて選択</button>
           </div>
           <div class="flex gap-2 flex-wrap">
@@ -435,32 +435,41 @@
           </div>
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-500 mb-1">頻度</label>
+          <label class="block text-xs font-bold text-gray-900 mb-1">頻度</label>
           <div class="flex gap-3">
             <label class="flex items-center gap-1.5 text-sm"><input type="radio" name="c-frequency" value="毎週" id="c-freq-weekly" checked onchange="onCompanyFrequencyChange()">毎週</label>
             <label class="flex items-center gap-1.5 text-sm"><input type="radio" name="c-frequency" value="隔週" id="c-freq-biweekly" onchange="onCompanyFrequencyChange()">隔週</label>
           </div>
         </div>
         <div id="c-biweekly-anchor-wrap" class="hidden">
-          <label class="block text-xs font-bold text-gray-500 mb-1">基準日 <span class="text-gray-400 font-normal">（この週を配送週とする）</span></label>
+          <label class="block text-xs font-bold text-gray-900 mb-1">基準日 <span class="text-gray-400 font-normal">（この週を配送週とする）</span></label>
           <input type="date" id="c-biweekly-anchor" class="w-full border p-2 rounded text-sm bg-white">
         </div>
-        <label class="flex items-center gap-2 text-xs text-gray-600">
+        <label class="flex items-center gap-2 text-xs text-gray-900">
           <input type="checkbox" id="c-exclude-holidays" class="w-4 h-4">
           祝日は除く
         </label>
       </div>
 
-      <div><label class="block text-xs text-gray-500 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">デフォルト出発時刻</label><input type="time" id="c-time" class="w-full border p-2 rounded text-sm"></div>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">デフォルト車両</label>
+        <label class="block text-xs text-gray-900 mb-1">デフォルト車両</label>
         <select id="c-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 選択 --</option></select>
       </div>
-      <div><label class="block text-xs text-gray-500 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">備考</label><input type="text" id="c-note" class="w-full border p-2 rounded text-sm"></div>
       <div id="c-address-wrap">
-        <label class="block text-xs text-gray-500 mb-1">住所 <span class="text-gray-400">（地図に表示する位置。保存時に自動で位置を調べます）</span></label>
+        <label class="block text-xs text-gray-900 mb-1">住所 <span class="text-gray-400">（地図に表示する位置。保存時に自動で位置を調べます）</span></label>
         <input type="text" id="c-address" placeholder="例: 愛知県○○市△△町1-2-3" class="w-full border p-2 rounded text-sm">
         <p id="c-geo-status" class="text-[11px] text-gray-400 mt-1"></p>
+      </div>
+      <div id="c-proc-wrap">
+        <label class="block text-xs text-gray-900 mb-1">納入手順書（PDF・複数可）</label>
+        <div id="c-proc-list" class="space-y-1 mb-2"></div>
+        <label class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-indigo-300 bg-indigo-50 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-100">
+          ＋ PDFを追加
+          <input type="file" id="c-proc-file" accept="application/pdf,.pdf" multiple class="hidden" onchange="onProcedureFilesAdded(this)">
+        </label>
+        <input type="file" id="c-proc-replace" accept="application/pdf,.pdf" class="hidden" onchange="onProcedureReplaceChosen(this)">
       </div>
       <div class="flex justify-end gap-2 text-sm pt-2 border-t">
         <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
@@ -476,11 +485,11 @@
       <input type="hidden" id="v-id">
       <input type="text" id="v-name" placeholder="車両名・ナンバー" class="w-full border p-2 rounded text-sm">
       <input type="text" id="v-type" placeholder="車種" class="w-full border p-2 rounded text-sm">
-      <div><label class="block text-xs text-gray-500 mb-1">車検満了日</label><input type="date" id="v-shaken" class="w-full border p-2 rounded text-sm"></div>
-      <div><label class="block text-xs text-gray-500 mb-1">任意保険更新日</label><input type="date" id="v-insurance" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">車検満了日</label><input type="date" id="v-shaken" class="w-full border p-2 rounded text-sm"></div>
+      <div><label class="block text-xs text-gray-900 mb-1">任意保険更新日</label><input type="date" id="v-insurance" class="w-full border p-2 rounded text-sm"></div>
       <input type="text" id="v-note" placeholder="備考" class="w-full border p-2 rounded text-sm">
       <div id="v-icon-wrap">
-        <label class="block text-xs text-gray-500 mb-1">地図のアイコン</label>
+        <label class="block text-xs text-gray-900 mb-1">地図のアイコン</label>
         <select id="v-icon" class="w-full border p-2 rounded text-sm bg-gray-50">
           <option value="">自動（車両名・車種から判定）</option>
           <option value="mini">軽バン（ミニキャブ型）</option>
@@ -506,13 +515,13 @@
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">① 取引先名 <span class="text-red-400">*</span></label>
+        <label class="block text-xs font-bold text-gray-900 mb-1">① 取引先名 <span class="text-red-400">*</span></label>
         <input type="text" id="as-name" placeholder="例: ○○工業" list="as-name-list" class="w-full border p-2 rounded text-sm" oninput="onAsNameChange()">
         <datalist id="as-name-list"></datalist>
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-2">② 種別（複数選択可）</label>
+        <label class="block text-xs font-bold text-gray-900 mb-2">② 種別（複数選択可）</label>
         <div class="flex gap-3">
           <button type="button" id="as-btn-delivery" onclick="toggleAsType('delivery')" class="flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">📦 納品</button>
           <button type="button" id="as-btn-pickup" onclick="toggleAsType('pickup')" class="flex-1 py-2.5 rounded-md border-2 text-sm font-bold transition border-gray-200 text-gray-400">🔄 引取</button>
@@ -520,7 +529,7 @@
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">③ 日付（複数選択可）</label>
+        <label class="block text-xs font-bold text-gray-900 mb-1">③ 日付（複数選択可）</label>
         <div class="flex gap-2 mb-2 items-center">
           <button type="button" onclick="changeAsMonth(-1)" class="px-2 py-1 bg-gray-100 rounded text-xs">◀</button>
           <span id="as-month-label" class="flex-1 text-center text-sm font-medium"></span>
@@ -535,22 +544,22 @@
 
       <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="block text-xs font-bold text-gray-500 mb-1">④ 出発時刻</label>
+          <label class="block text-xs font-bold text-gray-900 mb-1">④ 出発時刻</label>
           <input type="time" id="as-time" class="w-full border p-2 rounded text-sm">
         </div>
         <div>
-          <label class="block text-xs font-bold text-gray-500 mb-1">⑤ 車両</label>
+          <label class="block text-xs font-bold text-gray-900 mb-1">⑤ 車両</label>
           <select id="as-vehicle" class="w-full border p-2 rounded text-sm bg-gray-50" onchange="onAsVehicleChange()"><option value="">-- 選択 --</option></select>
         </div>
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">⑥ ドライバー <span class="text-gray-300 font-normal">（未選択時はマスタから自動セット）</span></label>
+        <label class="block text-xs font-bold text-gray-900 mb-1">⑥ ドライバー <span class="text-gray-300 font-normal">（未選択時はマスタから自動セット）</span></label>
         <select id="as-driver" class="w-full border p-2 rounded text-sm bg-gray-50"><option value="">-- 自動 --</option></select>
       </div>
 
       <div>
-        <label class="block text-xs font-bold text-gray-500 mb-1">⑦ メモ <span class="text-gray-300 font-normal">（確定スケジュールに表示）</span></label>
+        <label class="block text-xs font-bold text-gray-900 mb-1">⑦ メモ <span class="text-gray-300 font-normal">（確定スケジュールに表示）</span></label>
         <input type="text" id="as-memo" placeholder="例: 午後便、要連絡など" class="w-full border p-2 rounded text-sm" onkeydown="if(event.key==='Enter'){event.preventDefault();submitAddSchedule()}">
       </div>
 
@@ -664,7 +673,7 @@
     <div class="bg-white p-6 rounded-md w-full max-w-md space-y-4">
       <h3 class="text-lg font-bold">自社の位置</h3>
       <div>
-        <label class="block text-xs text-gray-500 mb-1">住所（地図に🏠で表示します）</label>
+        <label class="block text-xs text-gray-900 mb-1">住所（地図に🏠で表示します）</label>
         <input type="text" id="home-address" class="w-full border p-2 rounded text-sm">
         <p id="home-geo-status" class="text-[11px] text-gray-400 mt-1"></p>
       </div>
@@ -672,6 +681,15 @@
         <button onclick="closeHomeLocationModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
         <button onclick="submitHomeLocation()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ 納入手順書の選択（複数あるとき） ══ -->
+  <div id="proc-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeProcedureChooser()">
+    <div class="bg-white p-5 rounded-md w-full max-w-sm space-y-3">
+      <h3 id="proc-modal-title" class="text-base font-bold">納入手順書</h3>
+      <div id="proc-modal-list" class="space-y-2"></div>
+      <div class="text-right"><button onclick="closeProcedureChooser()" class="px-4 py-2 bg-gray-100 rounded text-sm">閉じる</button></div>
     </div>
   </div>
 
