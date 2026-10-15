@@ -463,9 +463,13 @@
         <p id="c-geo-status" class="text-[11px] text-gray-400 mt-1"></p>
       </div>
       <div id="c-proc-wrap">
-        <label class="block text-xs text-gray-500 mb-1">納入手順書（PDF）</label>
-        <div id="c-proc-current" class="text-xs mb-1.5"></div>
-        <input type="file" id="c-proc-file" accept="application/pdf,.pdf" class="w-full text-xs">
+        <label class="block text-xs text-gray-500 mb-1">納入手順書（PDF・複数可）</label>
+        <div id="c-proc-list" class="space-y-1 mb-2"></div>
+        <label class="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-indigo-300 bg-indigo-50 text-indigo-700 text-xs font-bold cursor-pointer hover:bg-indigo-100">
+          ＋ PDFを追加
+          <input type="file" id="c-proc-file" accept="application/pdf,.pdf" multiple class="hidden" onchange="onProcedureFilesAdded(this)">
+        </label>
+        <input type="file" id="c-proc-replace" accept="application/pdf,.pdf" class="hidden" onchange="onProcedureReplaceChosen(this)">
       </div>
       <div class="flex justify-end gap-2 text-sm pt-2 border-t">
         <button onclick="closeCompanyModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
@@ -677,6 +681,15 @@
         <button onclick="closeHomeLocationModal()" class="px-4 py-2 bg-gray-100 rounded">キャンセル</button>
         <button onclick="submitHomeLocation()" class="px-4 py-2 bg-slate-800 text-white rounded">保存する</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ══ 納入手順書の選択（複数あるとき） ══ -->
+  <div id="proc-modal" class="fixed inset-0 bg-black/50 z-[60] hidden flex items-center justify-center p-4" onclick="if(event.target===this)closeProcedureChooser()">
+    <div class="bg-white p-5 rounded-md w-full max-w-sm space-y-3">
+      <h3 id="proc-modal-title" class="text-base font-bold">納入手順書</h3>
+      <div id="proc-modal-list" class="space-y-2"></div>
+      <div class="text-right"><button onclick="closeProcedureChooser()" class="px-4 py-2 bg-gray-100 rounded text-sm">閉じる</button></div>
     </div>
   </div>
 

@@ -1660,7 +1660,7 @@ function renderCompanies() {
       ${(() => { const dv = db.vehicles.find(v => String(v.id) === String(c.default_vehicle_id)); return dv ? `<p class="text-xs text-blue-600">🚛 ${dv.name}</p>` : ''; })()}
       ${c.default_time ? `<p class="text-gray-500">⏰ ${c.default_time}</p>` : ''}
       ${c.note ? `<p class="text-gray-400 bg-yellow-50 px-2 py-1 rounded border border-yellow-100">💡 ${c.note}</p>` : ''}
-      ${c.procedure_path ? `<button onclick="openProcedure('${escQ(c.procedure_path)}')" class="text-indigo-600 hover:underline">📄 納入手順書</button>` : ''}
+      ${procedureCount(c) ? `<button onclick="openProcedureChooser('${c.id}')" class="text-indigo-600 hover:underline">📄 納入手順書${procedureCount(c) > 1 ? `（${procedureCount(c)}）` : ''}</button>` : ''}
       <div class="text-right pt-1"><button onclick="deleteRow('companies','${c.id}')" class="text-red-400 hover:underline text-[10px]">削除</button></div>
     </div>`;
 
@@ -1717,10 +1717,13 @@ function openCompanyModal(data = null) {
     document.getElementById('c-exclude-holidays').checked = false;
     document.getElementById('c-address').value = '';
   }
-  procedureRemove = false;
+  procState = {
+    items: (data && Array.isArray(data.procedures) ? data.procedures : []).map(p => ({ ...p, remove: false, replaceFile: null })),
+    adds: [],
+  };
   document.getElementById('c-proc-file').value = '';
-  document.getElementById('c-proc-wrap').classList.toggle('hidden', !hasColumn('companies', 'procedure_path'));
-  renderProcedureCurrent(data);
+  document.getElementById('c-proc-wrap').classList.toggle('hidden', !hasColumn('companies', 'procedures'));
+  renderProcedureEditor();
   // 住所の列がまだDBに無い間は住所欄を出さない（列追加前でも従来どおり保存できるように）
   document.getElementById('c-address-wrap').classList.toggle('hidden', !hasColumn('companies', 'address'));
   const geoEl = document.getElementById('c-geo-status');
@@ -1765,7 +1768,7 @@ async function submitCompany() {
     const ok = await applyCompanyAddress(row);
     if (!ok) return;
   }
-  if (hasColumn('companies', 'procedure_path')) {
+  if (hasColumn('companies', 'procedures')) {
     const ok = await applyProcedureFile(row);
     if (!ok) return;
   }
@@ -2115,46 +2118,89 @@ function googleMapsUrl(c) {
 // ════════════════════════════════════════════════════════
 const PROCEDURE_BUCKET = 'procedures';
 const PROCEDURE_MAX_MB = 10;
-let procedureRemove = false;
+// 編集中の状態：items＝登録済み（削除・差し替え予定を含む）、adds＝保存時に追加するファイル
+let procState = { items: [], adds: [] };
+let procReplaceIndex = -1;
 
-function renderProcedureCurrent(data) {
-  const el = document.getElementById('c-proc-current');
-  if (data && data.procedure_path && !procedureRemove) {
-    el.innerHTML = `📄 ${escHtml(data.procedure_name || '納入手順書.pdf')}`
-      + ` <button type="button" onclick="openProcedure('${escQ(data.procedure_path)}')" class="text-indigo-600 underline ml-1">開く</button>`
-      + ` <button type="button" onclick="markProcedureRemove()" class="text-red-500 underline ml-1">削除</button>`
-      + `<span class="block text-gray-400 mt-0.5">別のPDFを選ぶと差し替えます</span>`;
-  } else {
-    el.innerHTML = procedureRemove ? '<span class="text-red-500">保存すると手順書を削除します</span>' : '<span class="text-gray-400">未登録</span>';
-  }
-}
-function markProcedureRemove() {
-  procedureRemove = true;
-  renderProcedureCurrent(null);
+function procedureCount(c) { return c && Array.isArray(c.procedures) ? c.procedures.length : 0; }
+
+function isValidPdf(file) {
+  if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { alert(`「${file.name}」はPDFではありません`); return false; }
+  if (file.size > PROCEDURE_MAX_MB * 1024 * 1024) { alert(`「${file.name}」が大きすぎます（${PROCEDURE_MAX_MB}MBまで）`); return false; }
+  return true;
 }
 
-// 保存前にPDFをアップロードして row に保存先を入れる。falseなら保存を中止。
+function renderProcedureEditor() {
+  const el = document.getElementById('c-proc-list');
+  const rows = procState.items.map((p, i) => {
+    if (p.remove) {
+      return `<div class="flex items-center gap-2 text-xs text-gray-400"><span class="line-through truncate">📄 ${escHtml(p.name)}</span>`
+        + `<span class="text-red-500 shrink-0">保存で削除</span><button type="button" onclick="procUndo(${i})" class="underline shrink-0">元に戻す</button></div>`;
+    }
+    if (p.replaceFile) {
+      return `<div class="flex items-center gap-2 text-xs"><span class="truncate">📄 ${escHtml(p.replaceFile.name)}</span>`
+        + `<span class="text-indigo-600 shrink-0">保存で差し替え</span><button type="button" onclick="procUndo(${i})" class="underline text-gray-500 shrink-0">元に戻す</button></div>`;
+    }
+    return `<div class="flex items-center gap-2 text-xs"><span class="truncate">📄 ${escHtml(p.name)}</span>`
+      + `<button type="button" onclick="openProcedure('${escQ(p.path)}')" class="text-indigo-600 underline shrink-0">開く</button>`
+      + `<button type="button" onclick="procReplace(${i})" class="text-indigo-600 underline shrink-0">差し替え</button>`
+      + `<button type="button" onclick="procRemove(${i})" class="text-red-500 underline shrink-0">削除</button></div>`;
+  });
+  procState.adds.forEach((f, i) => {
+    rows.push(`<div class="flex items-center gap-2 text-xs"><span class="truncate">＋ ${escHtml(f.name)}</span>`
+      + `<span class="text-emerald-600 shrink-0">保存で追加</span><button type="button" onclick="procCancelAdd(${i})" class="underline text-gray-500 shrink-0">取消</button></div>`);
+  });
+  el.innerHTML = rows.length ? rows.join('') : '<p class="text-xs text-gray-400">未登録</p>';
+}
+function onProcedureFilesAdded(input) {
+  [...input.files].forEach(f => { if (isValidPdf(f)) procState.adds.push(f); });
+  input.value = '';
+  renderProcedureEditor();
+}
+function procReplace(i) {
+  procReplaceIndex = i;
+  document.getElementById('c-proc-replace').click();
+}
+function onProcedureReplaceChosen(input) {
+  const f = input.files[0];
+  input.value = '';
+  if (!f || procReplaceIndex < 0 || !isValidPdf(f)) return;
+  procState.items[procReplaceIndex].replaceFile = f;
+  procReplaceIndex = -1;
+  renderProcedureEditor();
+}
+function procRemove(i) { procState.items[i].remove = true; renderProcedureEditor(); }
+function procUndo(i) { procState.items[i].remove = false; procState.items[i].replaceFile = null; renderProcedureEditor(); }
+function procCancelAdd(i) { procState.adds.splice(i, 1); renderProcedureEditor(); }
+
+// 保存前にPDFのアップロード・削除を行い、row.procedures に最終的な一覧を入れる。falseなら保存を中止。
 async function applyProcedureFile(row) {
-  const prev = db.companies.find(c => String(c.id) === String(row.id));
-  const oldPath = prev ? prev.procedure_path : null;
-  const file = document.getElementById('c-proc-file').files[0];
-  if (file) {
-    if (!/\.pdf$/i.test(file.name) && file.type !== 'application/pdf') { alert('PDFファイルを選んでください'); return false; }
-    if (file.size > PROCEDURE_MAX_MB * 1024 * 1024) { alert(`PDFは${PROCEDURE_MAX_MB}MBまでにしてください`); return false; }
-    updateStatus('loading', '手順書をアップロード中...');
-    // 保存先のファイル名は英数字のみ（日本語のファイル名はStorageで使えないため、元の名前は別の列に残す）
-    const path = `${row.id}/${Date.now()}.pdf`;
+  const touched = procState.adds.length || procState.items.some(p => p.remove || p.replaceFile);
+  if (!touched) return true;
+  // 保存先のファイル名は英数字のみ（日本語のファイル名はStorageで使えないため、元の名前は一覧に残す）
+  const upload = async (file, n) => {
+    const path = `${row.id}/${Date.now()}-${n}.pdf`;
     const { error } = await sb.storage.from(PROCEDURE_BUCKET).upload(path, file, { contentType: 'application/pdf' });
-    if (error) { updateStatus('error', '手順書のアップロードに失敗: ' + error.message); return false; }
-    row.procedure_path = path;
-    row.procedure_name = file.name;
-  } else if (procedureRemove) {
-    row.procedure_path = null;
-    row.procedure_name = null;
-  } else {
-    return true;
+    if (error) throw new Error(`「${file.name}」: ${error.message}`);
+    return { path, name: file.name };
+  };
+  const result = [];
+  const toDelete = [];
+  let n = 0;
+  updateStatus('loading', '手順書を保存中...');
+  try {
+    for (const p of procState.items) {
+      if (p.remove) { toDelete.push(p.path); continue; }
+      if (p.replaceFile) { result.push(await upload(p.replaceFile, n++)); toDelete.push(p.path); continue; }
+      result.push({ path: p.path, name: p.name });
+    }
+    for (const f of procState.adds) result.push(await upload(f, n++));
+  } catch (e) {
+    updateStatus('error', '手順書のアップロードに失敗 ' + e.message);
+    return false;
   }
-  if (oldPath && oldPath !== row.procedure_path) sb.storage.from(PROCEDURE_BUCKET).remove([oldPath]); // 古いファイルの後片付け（失敗しても保存は続ける）
+  row.procedures = result;
+  if (toDelete.length) sb.storage.from(PROCEDURE_BUCKET).remove(toDelete); // 古いファイルの後片付け（失敗しても保存は続ける）
   return true;
 }
 
@@ -2171,10 +2217,23 @@ async function openProcedure(path) {
   else location.href = data.signedUrl;
 }
 
+// 1つならそのまま開き、複数あれば選択画面を出す
+function openProcedureChooser(companyId) {
+  const c = db.companies.find(x => String(x.id) === String(companyId));
+  const list = c && Array.isArray(c.procedures) ? c.procedures : [];
+  if (list.length === 1) { openProcedure(list[0].path); return; }
+  document.getElementById('proc-modal-title').textContent = `${c ? c.name : ''} の納入手順書`;
+  document.getElementById('proc-modal-list').innerHTML = list.map(p =>
+    `<button onclick="openProcedure('${escQ(p.path)}')" class="w-full text-left px-3 py-2.5 rounded-md border border-gray-200 hover:bg-gray-50 text-sm">📄 ${escHtml(p.name)}</button>`).join('');
+  document.getElementById('proc-modal').classList.remove('hidden');
+}
+function closeProcedureChooser() { document.getElementById('proc-modal').classList.add('hidden'); }
+
 function procedureLinkHtml(entry) {
   const c = db.companies.find(x => (entry.companyId && String(x.id) === String(entry.companyId)) || x.name === entry.name);
-  return c && c.procedure_path
-    ? `<button onclick="openProcedure('${escQ(c.procedure_path)}')" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ml-1">📄 手順書</button>`
+  const n = procedureCount(c);
+  return n
+    ? `<button onclick="openProcedureChooser('${c.id}')" class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 ml-1">📄 手順書${n > 1 ? `（${n}）` : ''}</button>`
     : '';
 }
 
@@ -2283,7 +2342,7 @@ async function renderMapView() {
       + `${rec ? `<br><span style="color:#059669;font-weight:700">✅ 完了${doneTime ? ' ' + doneTime : ''}</span>` : ''}`
       + `<div style="display:flex;gap:10px;margin-top:6px;flex-wrap:wrap">`
       + `<a href="${googleMapsUrl(c)}" target="_blank" rel="noopener" style="font-weight:700">📍 Googleマップで開く</a>`
-      + `${c.procedure_path ? `<a href="#" onclick="openProcedure('${escQ(c.procedure_path)}');return false;" style="font-weight:700">📄 納入手順書</a>` : ''}`
+      + `${procedureCount(c) ? `<a href="#" onclick="openProcedureChooser('${c.id}');return false;" style="font-weight:700">📄 納入手順書${procedureCount(c) > 1 ? `（${procedureCount(c)}）` : ''}</a>` : ''}`
       + `<a href="#" onclick="openDeliveryModal('${escQ(e.name)}','${fd}');return false;" style="font-weight:700">${rec ? '📝 記録を見る' : '📸 完了を記録'}</a>`
       + `</div></div>`;
     L.marker([c.lat, c.lng], { icon, title: e.name, zIndexOffset: rec ? -50 : 0 }).bindPopup(popup).addTo(mapLayer);

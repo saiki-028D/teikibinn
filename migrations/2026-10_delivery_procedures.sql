@@ -1,11 +1,9 @@
 -- ============================================================
--- 納入手順書（PDF）：取引先ごとに1ファイル（追加のみ）
---   companies.procedure_path : Storage上の保存先（procedures バケット内）
---   companies.procedure_name : 元のファイル名（表示用）
+-- 納入手順書（PDF）：取引先ごとに複数ファイル（追加のみ）
+--   companies.procedures : [{ "path": Storage上の保存先, "name": 元のファイル名 }, ...]（複数可）
 --   Storage: 非公開バケット procedures（ログイン済みユーザーのみ読み書き）
 -- ============================================================
-alter table companies add column if not exists procedure_path text;
-alter table companies add column if not exists procedure_name text;
+alter table companies add column if not exists procedures jsonb not null default '[]'::jsonb;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('procedures', 'procedures', false, 10485760, array['application/pdf'])
