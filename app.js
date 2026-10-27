@@ -1118,11 +1118,13 @@ function showExcelImportStep(step) {
 // "YYYY-MM-DD" に正規化する。読み取れない場合は空文字を返す（呼び出し側で要確認フラグにする）。
 function excelCellToYMD(v) {
   if (v instanceof Date && !isNaN(v)) {
-    // SheetJSはExcelのシリアル日付をUTC基準のDateとして返すため、UTC側のgetterで取り出す
-    // （ローカルタイムゾーンで取り出すと前後の日付にずれることがある）
-    const y = v.getUTCFullYear();
-    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(v.getUTCDate()).padStart(2, '0');
+    // SheetJS(0.18.5)はExcelの日付を「ブラウザのローカル時刻の0時」のDateとして返す
+    // （日本時間なら 2026/11/3 → 2026-11-02T15:00Z）。UTC側のgetterで取り出すと1日前になるため、
+    // ローカル側のgetterで取り出す。数秒の誤差で前日23:59台になる既知のずれに備え、12時間足してから日付を取る。
+    const t = new Date(v.getTime() + 12 * 60 * 60 * 1000);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
   const s = String(v ?? '').trim();
