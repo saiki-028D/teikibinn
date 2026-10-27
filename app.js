@@ -95,11 +95,13 @@ async function boot() {
   initCheckFormSelectors();
   renderCheckForm();
   updateStatus('loading', '読み込み中...');
+  loadFailed = false;
   await Promise.all([fetchHolidays(), loadMasters(), loadAppSettings()]);
   await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
   updateDropdowns();
   refreshAllViews();
-  updateStatus('success', '同期完了');
+  if (loadFailed) updateStatus('error', '一部のデータを読み込めませんでした。ページを再読み込みしてください');
+  else updateStatus('success', '同期完了');
   subscribeRealtime();
 }
 
@@ -111,20 +113,36 @@ function fetchHolidays() {
 // ════════════════════════════════════════════════════════
 //  データ読み込み（必要な範囲だけ・毎シート全件は取りに行かない）
 // ════════════════════════════════════════════════════════
+// 起動直後はログインの期限切れトークンが一瞬だけ使われ、1本目の問い合わせが401で失敗することがある。
+// 失敗を「0件」として扱うとマスタが空に見えるため、トークンを取り直して1回だけやり直す。
+let loadFailed = false; // 読み込み失敗があったら「同期完了」ではなくエラー表示にする
+async function selectWithRetry(makeQuery) {
+  let res = await makeQuery();
+  if (res.error) {
+    await sb.auth.getSession(); // 期限切れなら内部で更新される
+    res = await makeQuery();
+  }
+  if (res.error) console.error('読み込みに失敗:', res.error);
+  return res;
+}
+
 async function loadMasters() {
-  const [{data: vehicles}, {data: drivers}, {data: companies}] = await Promise.all([
-    sb.from('vehicles').select('*').order('sort_order').order('created_at'),
-    sb.from('drivers').select('*').order('created_at'),
-    sb.from('companies').select('*').order('created_at'),
+  const [v, d, c] = await Promise.all([
+    selectWithRetry(() => sb.from('vehicles').select('*').order('sort_order').order('created_at')),
+    selectWithRetry(() => sb.from('drivers').select('*').order('created_at')),
+    selectWithRetry(() => sb.from('companies').select('*').order('created_at')),
   ]);
-  db.vehicles = vehicles || [];
-  db.drivers = drivers || [];
-  db.companies = companies || [];
+  // 失敗したものは手元の一覧をそのまま残す（空で上書きしない）
+  if (!v.error) db.vehicles = v.data || [];
+  if (!d.error) db.drivers = d.data || [];
+  if (!c.error) db.companies = c.data || [];
+  if (v.error || d.error || c.error) loadFailed = true;
 }
 
 // 端末を問わない共有設定（例：カレンダーを最後に印刷した日時）を読み込む。
 async function loadAppSettings() {
-  const { data } = await sb.from('app_settings').select('*');
+  const { data, error } = await selectWithRetry(() => sb.from('app_settings').select('*'));
+  if (error) { loadFailed = true; return; }
   appSettings = {};
   (data || []).forEach(row => { appSettings[row.key] = row.value; });
 }
@@ -163,7 +181,8 @@ function applyRecordRow(rec) {
 }
 
 async function loadDispatchRange(from, to) {
-  const { data } = await sb.from('dispatch_days').select('*').gte('date', from).lte('date', to);
+  const { data, error } = await selectWithRetry(() => sb.from('dispatch_days').select('*').gte('date', from).lte('date', to));
+  if (error) { loadFailed = true; return; }
   dispatchCache.clear(); dispatchByDate.clear();
   (data || []).forEach(row => {
     dispatchCache.set(`${row.date}|${row.company_name}`, row);
@@ -173,7 +192,8 @@ async function loadDispatchRange(from, to) {
 }
 
 async function loadRecordsRange(from, to) {
-  const { data } = await sb.from('delivery_records').select('*').gte('date', from).lte('date', to);
+  const { data, error } = await selectWithRetry(() => sb.from('delivery_records').select('*').gte('date', from).lte('date', to));
+  if (error) { loadFailed = true; return; }
   recordsByDate.clear();
   (data || []).forEach(rec => {
     if (!recordsByDate.has(rec.date)) recordsByDate.set(rec.date, new Map());
