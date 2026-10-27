@@ -156,8 +156,28 @@ function monthRange(year, month) {
 
 async function loadDispatchAndRecordsForMonth(year, month) {
   const { from, to } = monthRange(year, month);
-  await loadDispatchRange(from, to);
-  await loadRecordsRange(from, to);
+  // 2つの取得は互いに関係ないので同時に投げる（順番に待つと往復2回分かかる）
+  await Promise.all([loadDispatchRange(from, to), loadRecordsRange(from, to)]);
+}
+
+// 保存したdispatch_daysの行を、表示中の月のキャッシュへ直接反映する。
+// 保存のたびに月全体を取り直すと往復が増えて画面の更新が遅れるため。
+function applyDispatchRows(rows) {
+  const { from, to } = monthRange(currentYear, currentMonth);
+  (rows || []).forEach(row => {
+    if (!row || row.date < from || row.date > to) return;
+    dispatchCache.set(`${row.date}|${row.company_name}`, row);
+    const list = dispatchByDate.get(row.date) || [];
+    const i = list.findIndex(x => x.company_name === row.company_name);
+    if (i >= 0) list[i] = row; else list.push(row);
+    dispatchByDate.set(row.date, list);
+  });
+}
+function applyRecordRow(rec) {
+  const { from, to } = monthRange(currentYear, currentMonth);
+  if (!rec || rec.date < from || rec.date > to) return;
+  if (!recordsByDate.has(rec.date)) recordsByDate.set(rec.date, new Map());
+  recordsByDate.get(rec.date).set(rec.company_name, rec);
 }
 
 async function loadDispatchRange(from, to) {
@@ -199,6 +219,23 @@ function scheduleRefresh() {
     refreshCurrentTabOnly();
   }, 500);
 }
+// 他の端末の変更は届いた行をそのままキャッシュに反映し、描画だけ軽くまとめて行う。
+// DELETEは行の中身が届かないので、その時だけ月全体を取り直す。
+let renderTimer = null;
+function scheduleRender() {
+  if (renderTimer) clearTimeout(renderTimer);
+  renderTimer = setTimeout(refreshCurrentTabOnly, 150);
+}
+function onDispatchChange(payload) {
+  if (payload.eventType === 'DELETE') { scheduleRefresh(); return; }
+  applyDispatchRows([payload.new]);
+  scheduleRender();
+}
+function onRecordChange(payload) {
+  if (payload.eventType === 'DELETE') { scheduleRefresh(); return; }
+  applyRecordRow(payload.new);
+  scheduleRender();
+}
 function refreshCurrentTabOnly() {
   if (activeTab === 'today') { buildConfirmedVtabs(); renderTodayDispatchBuilder(); }
   else if (activeTab === 'calendar') { renderCalendar(); }
@@ -207,10 +244,10 @@ function refreshCurrentTabOnly() {
 }
 function subscribeRealtime() {
   sb.channel('public:dispatch_days')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_days' }, scheduleRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'dispatch_days' }, onDispatchChange)
     .subscribe();
   sb.channel('public:delivery_records')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_records' }, scheduleRefresh)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_records' }, onRecordChange)
     .subscribe();
   sb.channel('public:app_settings')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'app_settings' }, scheduleSettingsRefresh)
@@ -561,11 +598,11 @@ async function saveTodayDispatch() {
       is_spot: false,
     };
   });
-  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  const { data: saved, error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' }).select();
   if (error) { updateStatus('error', '保存に失敗: ' + error.message); return; }
   document.getElementById('today-dispatch-selector-others').classList.add('hidden');
   document.getElementById('btn-toggle-others').textContent = '＋ 他の曜日の取引先も表示';
-  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  applyDispatchRows(saved);
   buildConfirmedVtabs(); renderTodayDispatchBuilder();
   updateStatus('success', '本日の運行日程を更新しました');
 }
@@ -961,9 +998,9 @@ async function submitCalDayEdit() {
 
   closeCalDayEdit();
   updateStatus('loading', '更新中...');
-  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  const { data: saved, error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' }).select();
   if (error) { updateStatus('error', '更新に失敗: ' + error.message); return; }
-  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  applyDispatchRows(saved);
   buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
   const d = parseDate(fd);
   if (d.getMonth() + 1 === currentMonth && d.getFullYear() === currentYear) showCalendarDetail(d.getDate());
@@ -1099,14 +1136,17 @@ async function submitAddSchedule() {
 
   closeAddScheduleModal();
   updateStatus('loading', `${dates.length}件の便を追加中...`);
-  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  const { data: saved, error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' }).select();
   if (error) { updateStatus('error', '追加に失敗: ' + error.message); return; }
 
   const lastDate = parseDate(dates[dates.length - 1]);
   if (lastDate.getFullYear() !== currentYear || lastDate.getMonth() + 1 !== currentMonth) {
+    // 別の月へ移る時だけ、その月を丸ごと取得する
     currentYear = lastDate.getFullYear(); currentMonth = lastDate.getMonth() + 1;
+    await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  } else {
+    applyDispatchRows(saved);
   }
-  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
   buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
   if (activeTab === 'calendar') showCalendarDetail(lastDate.getDate());
   updateStatus('success', `${dates.length}件の便を追加しました`);
@@ -1138,11 +1178,13 @@ function showExcelImportStep(step) {
 // "YYYY-MM-DD" に正規化する。読み取れない場合は空文字を返す（呼び出し側で要確認フラグにする）。
 function excelCellToYMD(v) {
   if (v instanceof Date && !isNaN(v)) {
-    // SheetJSはExcelのシリアル日付をUTC基準のDateとして返すため、UTC側のgetterで取り出す
-    // （ローカルタイムゾーンで取り出すと前後の日付にずれることがある）
-    const y = v.getUTCFullYear();
-    const m = String(v.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(v.getUTCDate()).padStart(2, '0');
+    // SheetJS(0.18.5)はExcelの日付を「ブラウザのローカル時刻の0時」のDateとして返す
+    // （日本時間なら 2026/11/3 → 2026-11-02T15:00Z）。UTC側のgetterで取り出すと1日前になるため、
+    // ローカル側のgetterで取り出す。数秒の誤差で前日23:59台になる既知のずれに備え、12時間足してから日付を取る。
+    const t = new Date(v.getTime() + 12 * 60 * 60 * 1000);
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
   const s = String(v ?? '').trim();
@@ -1301,13 +1343,17 @@ async function submitExcelImport() {
 
   closeExcelImportModal();
   updateStatus('loading', `${rows.length}件をカレンダーに反映中...`);
-  const { error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' });
+  const { data: saved, error } = await sb.from('dispatch_days').upsert(rows, { onConflict: 'date,company_name' }).select();
   if (error) { updateStatus('error', '反映に失敗: ' + error.message); return; }
 
   // 複数の日付・取引先にまたがる場合があるため、一番遅い日付の月をカレンダーに表示する
   const lastDate = rows.map(r => parseDate(r.date)).sort((a, b) => a - b).pop();
-  currentYear = lastDate.getFullYear(); currentMonth = lastDate.getMonth() + 1;
-  await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  if (lastDate.getFullYear() !== currentYear || lastDate.getMonth() + 1 !== currentMonth) {
+    currentYear = lastDate.getFullYear(); currentMonth = lastDate.getMonth() + 1;
+    await loadDispatchAndRecordsForMonth(currentYear, currentMonth);
+  } else {
+    applyDispatchRows(saved);
+  }
   buildConfirmedVtabs(); renderTodayDispatchBuilder(); renderCalendar();
   if (activeTab === 'calendar') showCalendarDetail(lastDate.getDate());
   updateStatus('success', `${rows.length}件をカレンダーに反映しました`);
@@ -1553,12 +1599,12 @@ async function submitDeliveryReport() {
   }
 
   updateStatus('loading', '保存中...');
-  const { error } = await sb.from('delivery_records').upsert({
+  const { data: savedRec, error } = await sb.from('delivery_records').upsert({
     date: deliveryTargetDate, company_name: deliveryTargetCompany,
     nouhin_memo: nouhinMemo, hikitori_memo: hikitoriMemo,
     nouhin_photo_urls: nouhinUrls, hikitori_photo_urls: hikitoriUrls,
     saved_by: savedBy || null,
-  }, { onConflict: 'date,company_name' });
+  }, { onConflict: 'date,company_name' }).select().single();
 
   if (btn) { btn.disabled = false; btn.textContent = '💾 保存する'; }
   if (error) { updateStatus('error', '保存に失敗: ' + error.message); return; }
@@ -1566,7 +1612,7 @@ async function submitDeliveryReport() {
   closeDeliveryModal();
   updateStatus('success', '配送実績の報告完了');
   const d = parseDate(deliveryTargetDate);
-  if (d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth) await loadRecordsRange(...Object.values(monthRange(currentYear, currentMonth)));
+  applyRecordRow(savedRec);
   if (deliveryTargetDate === todayStr) renderFinalList();
   if (activeTab === 'calendar') showCalendarDetail(d.getDate());
   if (activeTab === 'map') { mapObj && mapObj.closePopup(); renderMapView(); }
